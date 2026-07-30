@@ -2,15 +2,23 @@
 
 ## Estado actual
 
-El Paso 7 implementa un prototipo local del Guardián con tuning `guardian-combat.1` provisional.
-`@brecha/shared/combat` conserva fórmulas y estado temporal puro; el controlador web resuelve
-maniquíes estáticos y Phaser sólo presenta input, animación y feedback. No existen enemigos, IA,
-loot, persistencia de combate ni autoridad multiplayer.
+Paso 7 completado (`guardian-combat.1`, `GAME_DATA_VERSION`/`BALANCE_VERSION` `2026.07.30.1`).
+`@brecha/shared/combat` conserva fórmulas y estado temporal puro; `LocalCombatController` resuelve
+maniquíes estáticos y un hazard data-driven (`hazard.corrupted_pulse`, no letal, sin detección/
+navegación/aggro), y Phaser sólo presenta input, animación y feedback. El daño saliente y el
+**entrante** son ambos reales: `applyIncomingDamage` conecta vida, Furia por daño recibido, Piel de
+hierro y Sed de batalla al juego en ejecución, no sólo a los tests. El RNG de combate es
+determinista y seedeado (`@brecha/shared/random`), y la selección de blancos ordena por distancia
+real en vez de depender del orden de inserción del `Map`. Todavía no existen enemigos, IA, loot,
+persistencia de combate ni autoridad multiplayer — eso es Paso 8 en adelante.
 
 El orden de resolución es: validar costo/cooldown → reservar Furia/cooldown → abrir ventana por reloj
-→ seleccionar por arco/radio → resolver daño/armadura/crítico → deduplicar impacto → actualizar HUD y
-emitir evento de presentación. El reloj se congela durante pausa; los resultados no dependen de un
-callback visual.
+→ seleccionar por arco/radio (ordenado por distancia, tie-break por id) → resolver daño/armadura/
+crítico → deduplicar impacto → actualizar HUD y emitir evento de presentación. El reloj se congela
+durante pausa; los resultados no dependen de un callback visual. La presentación
+(`combat-presentation.ts`) deriva frameRate y frames de `GAME_DATA.animations`, y valida que el
+`hitFrame` de cada animación siga alineado con el `impactMs` real de la habilidad — no hay literales
+de tiempo fuera de `packages/game-data`.
 
 ## Datos del Paso 2
 

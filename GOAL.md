@@ -2635,37 +2635,41 @@ Estado: [x]
 
 # Paso 7 — Combate del Guardián
 
-Estado: [ ]
+Estado: [x]
 
 ## Tareas
 
-- [ ] Implementar vida.
-- [ ] Implementar Furia.
-- [ ] Implementar ataque básico.
-- [ ] Implementar Golpe poderoso.
-- [ ] Implementar Torbellino.
-- [ ] Implementar Piel de hierro.
-- [ ] Implementar Sed de batalla.
-- [ ] Implementar cooldowns.
-- [ ] Implementar costos.
-- [ ] Implementar impactos.
-- [ ] Implementar retroceso.
-- [ ] Implementar críticos.
-- [ ] Implementar armadura.
-- [ ] Vincular impactos a ventanas o eventos de animación.
-- [ ] Implementar efectos visuales provisionales.
-- [ ] Implementar sonidos provisionales.
-- [ ] Implementar pooling de efectos repetitivos.
-- [ ] Implementar números de daño opcionales.
-- [ ] Crear pruebas de fórmulas.
+- [x] Implementar vida. `applyIncomingDamage` conecta `applyDamageTaken` al Guardián real; antes
+  nada del juego podía reducir la vida aunque los tests unitarios la cubrieran.
+- [x] Implementar Furia.
+- [x] Implementar ataque básico.
+- [x] Implementar Golpe poderoso.
+- [x] Implementar Torbellino.
+- [x] Implementar Piel de hierro. `damageTakenMultiplier` ahora es observable: reduce el daño real
+  entrante, no solo la bandera del HUD.
+- [x] Implementar Sed de batalla. La curación por muerte es visible porque la vida ya puede bajar.
+- [x] Implementar cooldowns.
+- [x] Implementar costos.
+- [x] Implementar impactos.
+- [x] Implementar retroceso.
+- [x] Implementar críticos.
+- [x] Implementar armadura. Mitigación saliente y entrante, ambas reales.
+- [x] Vincular impactos a ventanas o eventos de animación. `combat-presentation.ts` deriva
+  frameRate/frames de `GAME_DATA.animations`; `hitFrameImpactDivergenceMs` verifica que el
+  `hitFrame` de cada animación siga alineado con su `impactMs`, en vez de literales sueltos.
+- [x] Implementar efectos visuales provisionales.
+- [x] Implementar sonidos provisionales. `CombatAudio.seen` ahora tiene tope (500 claves, FIFO).
+- [x] Implementar pooling de efectos repetitivos.
+- [x] Implementar números de daño opcionales.
+- [x] Crear pruebas de fórmulas.
 
 ## Criterios de aceptación
 
-- [ ] Las habilidades respetan cooldowns.
-- [ ] No pueden activarse sin recursos.
-- [ ] La vida y Furia se sincronizan con el HUD.
-- [ ] Las fórmulas tienen pruebas.
-- [ ] No hay daño calculado únicamente en la capa visual.
+- [x] Las habilidades respetan cooldowns.
+- [x] No pueden activarse sin recursos.
+- [x] La vida y Furia se sincronizan con el HUD.
+- [x] Las fórmulas tienen pruebas.
+- [x] No hay daño calculado únicamente en la capa visual.
 
 ---
 
@@ -3311,6 +3315,7 @@ También debe actualizar el registro siguiente.
 | 2026-07-29 | 4 | Completado | Autenticación propia con Argon2id, sesiones opacas revocables, rutas y WebSocket protegidos, perfil y gestión segura de Guardianes con UI web | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 19 pruebas unitarias/UI, 11 integraciones PostgreSQL/HTTP/WS, build, 5 migraciones, seed doble y recorrido visual real | Paso 5: configurar navegación principal |
 | 2026-07-29 | 5 | Completado | Navegación protegida, recuperación no rotativa de sesión, estado de red/mantenimiento y acciones single-flight con intención idempotente | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 32 pruebas unitarias/UI, 12 integraciones PostgreSQL/HTTP/WS, build, migraciones y seed doble | Paso 6: instalar y configurar Phaser |
 | 2026-07-29 | 6 | Completado | Isla Phaser desacoplada con escenas Boot/Test, movimiento y colisiones Arcade, FSM y capas animadas validadas, ciclo de vida seguro y checkpoint autoritativo idempotente | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 41 pruebas unitarias/UI, 13 integraciones PostgreSQL/HTTP, build, 6 migraciones, seed doble, backup/restore SHA-256 y smoke real de canvas/remontaje | Paso 7: implementar combate del Guardián |
+| 2026-07-30 | 7 | Completado | Combate del Guardián cerrado tras auditoría independiente: RNG determinista seedeado y orden de blancos por distancia (antes dependían de orden de inserción del Map), daño entrante real vía `applyIncomingDamage` (Piel de hierro y Sed de batalla eran inertes en el juego pese a tests unitarios verdes), presentación visual atada a `GAME_DATA.animations` sin literales mágicos, y dos bugs reales que impedían todo uso en navegador real: `fetch` nativo invocado con receptor incorrecto (Illegal invocation en todo navegador) y `LocalCombatController` construido como campo de clase antes de que `this.time` de Phaser existiera. Verificado en vivo: registro, Guardián, canvas renderizando personaje/capas/dummies/hazard, ataque activando cooldown | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 77 pruebas unitarias/UI, 13 integraciones PostgreSQL/HTTP, build, smoke real de navegador con sesión completa (registro→Guardián→partida→canvas visible) | Paso 8: sistema base de enemigos |
 
 ---
 

@@ -149,7 +149,9 @@ residuales.
 - [x] Completado: tuning `guardian-combat.1` provisional y `GAME_DATA_VERSION`/`BALANCE_VERSION` `2026.07.29.2`; el validador exige las cinco habilidades del Guardián.
 - [x] Completado: núcleo puro en `@brecha/shared` con RNG/reloj inyectables, fórmulas, costos, cooldowns, Furia, Piel de hierro, Sed de batalla, geometría y deduplicación.
 - [x] Completado: controlador local de maniquíes y adaptador Phaser con inputs, capas sincronizadas, ventanas temporales, HUD limitado a 10 Hz, VFX/SFX propios y pools 32/24.
-- [-] En curso: ejecutar matriz final, smoke de navegador y auditoría independiente antes de cerrar GOAL.
+- [x] Completado: auditoría independiente encontró y cerró brechas reales (daño entrante nunca
+      conectado, RNG no determinista, presentación con literales sueltos) y dos bugs que impedían todo
+      uso en navegador real; matriz completa y smoke real de navegador verificados en vivo.
 
 ## Pruebas
 
@@ -188,12 +190,41 @@ presentación nunca calcula ni decide daño.
   consulta la pose inyectada del actor en cada tick; recovery/canal bloquean nuevos comandos hasta su
   límite. Los ledgers se liberan al terminar una ejecución y el retroceso usa un sweep puro contra el
   segmento completo antes de que Phaser actualice la presentación.
-- Evidencia de matriz: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (65 pruebas,
-  16 archivos), `pnpm test:integration` (13 pruebas, 2 archivos) y `pnpm build` pasaron. El build
-  conserva la advertencia preexistente del chunk Phaser de 1,310.90 kB (351.15 kB gzip). Falta el
-  smoke real de navegador y la auditoría independiente antes de cerrar GOAL.
+- Evidencia de matriz previa: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (65
+  pruebas, 16 archivos), `pnpm test:integration` (13 pruebas, 2 archivos) y `pnpm build` pasaron.
+- 2026-07-30: **auditoría independiente (Sonnet 5, planificada con Opus 5)** encontró que el matiz
+  verde no probaba que Paso 7 estuviera realmente cerrado:
+  - `applyDamageTaken` no tenía ningún llamador en código de aplicación — vida, Piel de hierro y
+    Sed de batalla eran correctas en tests unitarios e invisibles en el juego real.
+  - El RNG del combate era `Phaser.Math.Between`/`Math.random()` sin semilla, y la selección de
+    blancos dependía del orden de inserción de un `Map` — no reproducible ante enemigos dinámicos.
+  - `combat-presentation.ts` tenía `frameRate`/`impactMs` hardcodeados que coincidían con el
+    catálogo por casualidad de construcción, no por una relación exigida; `hitFrame`/`eventFrames`
+    del catálogo eran datos huérfanos que nada leía.
+- Corrección A1 (determinismo): `packages/shared/src/random.ts` (RNG seedeado mulberry32 +
+  `seedFromString`), orden de blancos por distancia+id, `CombatAudio.seen` acotado a 500 claves.
+- Corrección A2 (daño entrante real): `LocalCombatController.applyIncomingDamage`, hazard
+  `hazard.corrupted_pulse` data-driven (estático, telegrafiado, no letal — sin detección/nav/aggro,
+  eso es Paso 8) para poder verificar vida/Piel de hierro/Sed de batalla en el juego corriendo.
+- Corrección A3 (presentación atada al catálogo): `guardianCombatPresentation` deriva
+  frameRate/frames de `GAME_DATA.animations`; `hitFrameImpactDivergenceMs` reemplaza los literales
+  `!== 200`/`!== 400` por una verificación real de alineación hitFrame↔impactMs.
+- Corrección A4 (matriz + smoke real): se detectaron y corrigieron dos bugs que impedían **todo**
+  uso en un navegador real (invisibles para los tests, que mockean fetch/runtime por diseño):
+  `ApiClient` invocaba `fetch` nativo con receptor incorrecto (`Illegal invocation` en Chrome/
+  Firefox/Edge reales — nadie podía loguearse nunca fuera de jsdom), y `TestScene.controller` se
+  construía como campo de clase antes de que Phaser instalara `this.time` en la escena. Verificado
+  en vivo: registro → Guardián → `/partida` → canvas renderizando personaje, capas, dummies y el
+  hazard `corrupted_pulse` pulsando; clic izquierdo activa Tajo y arranca su cooldown.
+- Evidencia de matriz final: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (77
+  pruebas, 17 archivos), `pnpm test:integration` (13 pruebas, 2 archivos), `pnpm build` y smoke real
+  de navegador — todo verde. El build conserva la advertencia preexistente del chunk Phaser
+  (>500 kB, esperado para una dependencia de ese tamaño).
 
 ## Trabajo pendiente
 
-El Paso 8 añadirá enemigos y consumirá este núcleo. Balance definitivo, persistencia de runs y
-autoridad multiplayer permanecen en sus pasos de GOAL.
+Ninguna de estas correcciones estaba en el alcance original de Paso 7 más allá de cerrar sus propias
+brechas — no se adelantó nada de Paso 8. El Paso 8 añadirá enemigos y consumirá este núcleo
+(incluyendo `resolveAttack` simétrico, FSM visual completa de 11 estados y un mundo de simulación de
+paso fijo — ver hallazgos de la auditoría en el historial de esta sesión). Balance definitivo,
+persistencia de runs y autoridad multiplayer permanecen en sus pasos de GOAL.
