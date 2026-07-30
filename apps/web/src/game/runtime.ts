@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { GAME_DATA } from '@brecha/game-data';
 import { createSeededRandom, seedFromString } from '@brecha/shared';
 
 import {
@@ -27,6 +28,13 @@ const TEST_OBSTACLES = [
   [820, 450, 32, 280],
   [240, 560, 280, 32],
 ] as const;
+/**
+ * Static, data-driven damage hazard: no detection/navigation/aggro (that is Paso 8's job). It
+ * exists solely to make incoming damage — and therefore health, Iron Skin and Battle Thirst —
+ * honestly verifiable in the running game instead of provably true in tests and invisible in play.
+ */
+const HAZARD = GAME_DATA.hazards[0]!;
+const HAZARD_POSITION = Object.freeze({ x: 640, y: 460 });
 
 export type RuntimeConnection = 'online' | 'offline' | 'degraded' | 'maintenance';
 export type GameHudSnapshot = Readonly<{
@@ -201,6 +209,8 @@ class TestScene extends Phaser.Scene {
     constrainDummyKnockback,
   );
   private readonly dummyVisuals = new Map<string, Phaser.GameObjects.Arc>();
+  private hazardPulseAt = HAZARD.periodMs;
+  private hazardIndicator!: Phaser.GameObjects.Arc;
   private feedback!: FeedbackPool;
   private audio = new CombatAudio();
   private showDamageNumbers = true;
@@ -236,6 +246,10 @@ class TestScene extends Phaser.Scene {
     this.addDummy('dummy:one', 360, 180, 0);
     this.addDummy('dummy:two', 400, 260, 25);
     this.addDummy('dummy:three', 300, 330, 60);
+    this.hazardIndicator = this.add
+      .circle(HAZARD_POSITION.x, HAZARD_POSITION.y, HAZARD.radiusPx, 0x8a3ffc, 0)
+      .setStrokeStyle(2, 0x8a3ffc, 0)
+      .setDepth(4);
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as Record<
       'W' | 'A' | 'S' | 'D',
       Phaser.Input.Keyboard.Key
@@ -275,6 +289,7 @@ class TestScene extends Phaser.Scene {
     this.syncLayers();
     this.playSynchronizedAnimations();
     this.handleEvents(this.controller.update({ x: this.player.x, y: this.player.y }));
+    this.updateHazard(now);
     this.publishHud(false);
   }
   public pause(): void {
@@ -304,6 +319,22 @@ class TestScene extends Phaser.Scene {
       id,
       this.add.circle(x, y, 20, 0x9c7a55).setStrokeStyle(3, 0xe7cda5).setDepth(y),
     );
+  }
+  /** Telegraphs, then resolves, one static periodic pulse — data-driven, no detection/nav/aggro. */
+  private updateHazard(now: number): void {
+    const telegraphStartsAt = this.hazardPulseAt - HAZARD.telegraphMs;
+    const telegraphing = now >= telegraphStartsAt && now < this.hazardPulseAt;
+    const progress = telegraphing ? (now - telegraphStartsAt) / HAZARD.telegraphMs : 0;
+    this.hazardIndicator.setStrokeStyle(2, 0x8a3ffc, telegraphing ? 0.35 + progress * 0.5 : 0);
+    this.hazardIndicator.setFillStyle(0x8a3ffc, telegraphing ? progress * 0.12 : 0);
+    if (now < this.hazardPulseAt) return;
+    this.hazardPulseAt = now + HAZARD.periodMs;
+    const distance = Math.hypot(
+      this.player.x - HAZARD_POSITION.x,
+      this.player.y - HAZARD_POSITION.y,
+    );
+    if (distance <= HAZARD.radiusPx)
+      this.handleEvents(this.controller.applyIncomingDamage(HAZARD.damage, now));
   }
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
@@ -363,6 +394,17 @@ class TestScene extends Phaser.Scene {
       }
       if (event.type === 'targetDefeated')
         this.dummyVisuals.get(event.targetId)?.setFillStyle(0x3b3b3b).setAlpha(0.45);
+      if (event.type === 'selfDamaged') {
+        this.feedback.impact(
+          this.player.x,
+          this.player.y - 20,
+          event.amount,
+          false,
+          this.showDamageNumbers,
+        );
+        this.audio.play('hit', `self:${Math.round(this.combatNow())}`);
+        this.cameras.main.shake(80, 0.004);
+      }
     }
     for (const target of this.controller.getTargets()) {
       const visual = this.dummyVisuals.get(target.id);

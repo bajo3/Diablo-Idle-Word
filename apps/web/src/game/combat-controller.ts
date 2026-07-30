@@ -2,6 +2,7 @@ import { GAME_DATA } from '@brecha/game-data';
 import {
   advanceGuardianCombat,
   applyBattleThirst,
+  applyDamageTaken,
   applySuccessfulHit,
   createGuardianCombatState,
   resolvePhysicalDamage,
@@ -36,7 +37,8 @@ export type CombatEvent =
     }>
   | Readonly<{ type: 'targetDefeated'; targetId: string; position: CombatVector }>
   | Readonly<{ type: 'knockback'; targetId: string; distance: number; position: CombatVector }>
-  | Readonly<{ type: 'ironSkin'; active: boolean }>;
+  | Readonly<{ type: 'ironSkin'; active: boolean }>
+  | Readonly<{ type: 'selfDamaged'; amount: number; health: number; maxHealth: number }>;
 export type CombatHudSnapshot = Readonly<{
   health: number;
   maxHealth: number;
@@ -144,6 +146,24 @@ export class LocalCombatController {
   }
   public getTargets(): readonly DummyTarget[] {
     return [...this.targets.values()];
+  }
+  /**
+   * Applies incoming damage to the Guardian himself, through the same pure `applyDamageTaken`
+   * rule the unit tests already cover (armor, Iron Skin's damageTakenMultiplier, fury-on-hit).
+   * A downed Guardian (health 0) is a no-op — death/derribado is Paso 9 scope, not Paso 7's.
+   */
+  public applyIncomingDamage(rawAmount: number, at: number = this.clock.now()): CombatEvent[] {
+    const before = this.state;
+    this.state = applyDamageTaken(guardianCombatTuning, this.state, rawAmount, at);
+    if (this.state.health === before.health) return [];
+    return [
+      {
+        type: 'selfDamaged',
+        amount: before.health - this.state.health,
+        health: this.state.health,
+        maxHealth: this.state.maxHealth,
+      },
+    ];
   }
   public snapshot(): CombatHudSnapshot {
     const now = this.clock.now();

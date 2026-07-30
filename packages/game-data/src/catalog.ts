@@ -1,7 +1,7 @@
 import type { GameDataCatalog } from './schemas.js';
 
-export const GAME_DATA_VERSION = '2026.07.29.2' as const;
-export const BALANCE_VERSION = '2026.07.29.2' as const;
+export const GAME_DATA_VERSION = '2026.07.30.1' as const;
+export const BALANCE_VERSION = '2026.07.30.1' as const;
 
 /** Data only: formulas and numerical combat tuning remain deliberately TBD in Step 2. */
 export const GAME_DATA: GameDataCatalog = {
@@ -477,6 +477,17 @@ export const GAME_DATA: GameDataCatalog = {
           serverRelevant: true,
         },
       ],
+    },
+  ],
+  hazards: [
+    {
+      id: 'hazard.corrupted_pulse',
+      displayName: 'Pulso corrupto',
+      periodMs: 4000,
+      telegraphMs: 900,
+      radiusPx: 90,
+      damage: 18,
+      lethal: false,
     },
   ],
 };

@@ -26,6 +26,7 @@ export function validateGameData(input: unknown): GameDataCatalog {
     ['animation', data.animations.map(({ id }) => id)],
     ['asset', data.assets.map(({ id }) => id)],
     ['map', data.maps.map(({ id }) => id)],
+    ['hazard', data.hazards.map(({ id }) => id)],
   ] as const;
   for (const [group, ids] of duplicateGroups) {
     const duplicates = duplicateIds(ids);

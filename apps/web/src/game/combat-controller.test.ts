@@ -185,6 +185,56 @@ describe('local Guardian combat controller', () => {
     time = 200;
     expect(controller.update().filter((event) => event.type === 'damageApplied')).toHaveLength(3);
   });
+  it('applies incoming damage through the shared rule and returns a matching selfDamaged event', () => {
+    const { controller } = testController();
+    const before = controller.snapshot();
+    const events = controller.applyIncomingDamage(100, 0);
+    const after = controller.snapshot();
+    expect(after.health).toBeLessThan(before.health);
+    expect(after.fury).toBe(before.fury + 5);
+    expect(events).toEqual([
+      {
+        type: 'selfDamaged',
+        amount: before.health - after.health,
+        health: after.health,
+        maxHealth: before.maxHealth,
+      },
+    ]);
+  });
+  it('is a no-op once the Guardian is already downed', () => {
+    const { controller } = testController();
+    controller.applyIncomingDamage(10_000, 0);
+    expect(controller.snapshot().health).toBe(0);
+    expect(controller.applyIncomingDamage(50, 100)).toEqual([]);
+  });
+  it('reduces incoming damage while Iron Skin is active and stops once it expires', () => {
+    const { controller, setTime } = testController();
+    for (const [at, id] of [
+      [0, 'a'],
+      [500, 'b'],
+      [1000, 'c'],
+    ] as const) {
+      setTime(at);
+      controller.activate('slash', id, { x: 0, y: 0 }, { x: 1, y: 0 });
+      setTime(at + 200);
+      controller.update();
+    }
+    setTime(1500);
+    controller.activate('ironSkin', 'skin', { x: 0, y: 0 }, { x: 1, y: 0 });
+    setTime(1750);
+    controller.update();
+    expect(controller.snapshot().ironSkinActive).toBe(true);
+    const beforeShielded = controller.snapshot();
+    controller.applyIncomingDamage(100, 1750);
+    const shieldedLoss = beforeShielded.health - controller.snapshot().health;
+    setTime(5751);
+    controller.update();
+    expect(controller.snapshot().ironSkinActive).toBe(false);
+    const beforeUnshielded = controller.snapshot();
+    controller.applyIncomingDamage(100, 5751);
+    const unshieldedLoss = beforeUnshielded.health - controller.snapshot().health;
+    expect(shieldedLoss).toBeLessThan(unshieldedLoss);
+  });
   it('sweeps knockback across walls and stops at the safe world edge', () => {
     const bounds = { minimumX: 0, minimumY: 0, maximumX: 100, maximumY: 100 };
     expect(
