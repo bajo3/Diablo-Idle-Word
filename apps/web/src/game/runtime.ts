@@ -203,11 +203,14 @@ class TestScene extends Phaser.Scene {
   private pausedDuration = 0;
   /** One seed per run: identical command sequences must replay identically (GOAL.md §32). */
   private readonly runSeed = seedFromString(crypto.randomUUID());
-  private readonly controller = new LocalCombatController(
-    { now: () => this.combatNow() },
-    createSeededRandom(this.runSeed),
-    constrainDummyKnockback,
-  );
+  /**
+   * Built in create(), not as a field initializer: LocalCombatController's constructor calls
+   * clock.now() eagerly, and this.time (Phaser's Scene clock) does not exist yet at the point a
+   * field initializer runs — the scene has not been installed into a Game. Constructing it here
+   * as a class field throws "Cannot read properties of undefined (reading 'now')" the moment a
+   * real browser (not a mocked/short-circuited test double) actually boots this scene.
+   */
+  private controller!: LocalCombatController;
   private readonly dummyVisuals = new Map<string, Phaser.GameObjects.Arc>();
   private hazardPulseAt = HAZARD.periodMs;
   private hazardIndicator!: Phaser.GameObjects.Arc;
@@ -220,6 +223,11 @@ class TestScene extends Phaser.Scene {
     super('test');
   }
   public create(): void {
+    this.controller = new LocalCombatController(
+      { now: () => this.combatNow() },
+      createSeededRandom(this.runSeed),
+      constrainDummyKnockback,
+    );
     for (const asset of localAssetManifest) createLayerAnimations(this, asset);
     this.physics.world.setBounds(0, 0, TEST_WORLD.width, TEST_WORLD.height);
     const walls = this.physics.add.staticGroup();
@@ -434,6 +442,11 @@ class TestScene extends Phaser.Scene {
     );
   }
   private publishHud(force: boolean): void {
+    // setConnection/setDamageNumbers are part of the runtime's public API and are called by
+    // GameIsland synchronously right after mount, before Phaser's async scene boot necessarily
+    // reaches create(). The fields they set are still applied; create() publishes the first real
+    // snapshot once the controller exists.
+    if (this.controller === undefined) return;
     const now = this.combatNow();
     if (!force && now - this.lastHudAt < 100) return;
     this.lastHudAt = now;
@@ -449,9 +462,16 @@ class TestScene extends Phaser.Scene {
     if (this.paused) this.resume();
     else this.pause();
   }
+  /**
+   * this.time (Phaser's Scene clock) does not exist until the scene has been installed into a
+   * booted Game - which happens asynchronously. The runtime's public API (setConnection,
+   * setDamageNumbers) is called synchronously right after mountGameRuntime returns, before that
+   * boot necessarily completes, so this must tolerate being read pre-boot instead of throwing.
+   */
   private combatNow(): number {
-    const currentPause = this.pausedAt === undefined ? 0 : this.time.now - this.pausedAt;
-    return this.time.now - this.pausedDuration - currentPause;
+    const now = this.time?.now ?? 0;
+    const currentPause = this.pausedAt === undefined ? 0 : now - this.pausedAt;
+    return now - this.pausedDuration - currentPause;
   }
   private releaseInput(): void {
     this.input.off('pointermove', this.onPointerMove, this);

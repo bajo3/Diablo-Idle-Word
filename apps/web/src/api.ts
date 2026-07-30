@@ -43,7 +43,11 @@ export class ApiClient {
 
   public constructor(options: ApiClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // A bare `fetch` reference throws "Illegal invocation" in real browsers once called as
+    // `this.fetchImpl(...)`: native fetch requires its receiver to be the global object. Binding
+    // it here is required, not stylistic - unit tests never caught this because their injected
+    // fetchImpl mocks don't have that native receiver check.
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.online = options.online ?? (() => navigator.onLine);
     this.timeoutMs = options.timeoutMs ?? 8_000;
   }
