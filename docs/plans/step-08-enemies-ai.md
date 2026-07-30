@@ -127,22 +127,30 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
 - 2026-07-30: sin A* para el MVP; seek/flee/arrive + separación alcanza para "navegación simple".
 - 2026-07-30: proyectiles y telégrafos se construyen una sola vez en 8.5 para que el jefe del Paso
   10 los reutilice sin duplicar código.
+- 2026-07-30 (revisa la secuencia original de 8.0d): `LocalCombatController` ya es determinista por
+  comparación de timestamps absolutos (`impact.at <= now`), no por acumulación de delta — no es lo
+  que el riesgo de "8.0d" describía. Extraer un `SimulationWorld` de paso fijo _ahora_, sin ningún
+  consumidor real (IA/steering/proyectiles todavía no existen como código), sería diseñar la
+  abstracción sin nada concreto contra qué validarla — puro riesgo especulativo, ninguna ganancia.
+  Se pospone 8.0d y se funde con 8.2/8.3: el mundo de paso fijo se extrae recién cuando la IA y la
+  navegación necesiten integrar posición/velocidad, ahí donde el riesgo de dependencia de framerate
+  es real y hay algo concreto (posiciones de enemigos moviéndose) para probar antes/después.
 
 ## Milestones
 
 1. 8.0a — daño simétrico (`resolveAttack`) con pruebas de regresión contra `applyDamageTaken`.
 2. 8.0b — FSM visual de 11 estados con reglas de prioridad/interrupción.
 3. 8.0c — validador de assets generalizado (no específico del Guardián).
-4. 8.0d — `SimulationWorld` de paso fijo; los 12 tests de `combat-controller.test.ts` migran sin
-   cambios y siguen en verde.
-5. 8.1 — tuning de enemigos en `game-data` + validación cruzada.
-6. 8.2 — FSM de IA pura + detección con histéresis.
-7. 8.3 — navegación simple.
-8. 8.4 — los cinco enemigos como perfiles de comportamiento.
-9. 8.5 — proyectiles y telégrafos.
-10. 8.6 — élites.
-11. 8.7 — muerte/limpieza/recompensas pendientes.
-12. 8.8 — matriz completa, perf, smoke real, cierre en GOAL.
+4. 8.1 — tuning de enemigos en `game-data` + validación cruzada.
+5. 8.2 — FSM de IA pura + detección con histéresis. Incluye extraer `SimulationWorld` de paso fijo
+   (ex-8.0d, pospuesto — ver Decisiones) en cuanto haya un consumidor real de posición/velocidad;
+   los 12 tests de `combat-controller.test.ts` deben migrar sin cambios y seguir en verde.
+6. 8.3 — navegación simple; termina de asentar `SimulationWorld` si 8.2 no lo agotó.
+7. 8.4 — los cinco enemigos como perfiles de comportamiento.
+8. 8.5 — proyectiles y telégrafos.
+9. 8.6 — élites.
+10. 8.7 — muerte/limpieza/recompensas pendientes.
+11. 8.8 — matriz completa, perf, smoke real, cierre en GOAL.
 
 ## Progreso
 
@@ -155,13 +163,14 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       wiring en `runtime.ts` — no hay ningún productor real de esos estados hasta 8.4/8.6, wirearlo
       antes sería código muerto.
 - [x] Completado (2026-07-30): 8.0c validador de assets generalizado. `AssetManifestEntry` ahora
-  lleva `entityId`; `validateAssetManifest` agrupa por entidad (ids/capas globales siguen únicos)
-  y admite 64 o 128px. El Guardián conserva su contrato exacto de 4 capas vía `REQUIRED_LAYERS`
-  (runtime.ts sigue asumiendo que armor/weapon existen); cualquier otra entidad sólo necesita una
-  capa `body`. 3 tests nuevos (multi-entidad válida, entidad sin `body` rechazada, tamaño de frame
-  inválido rechazado); las 87 pruebas totales siguen verdes, incluida la reordenación exacta de
-  chequeos (capa duplicada antes que id duplicado) que un test existente ya fijaba.
-- [ ] Pendiente: 8.0d `SimulationWorld` de paso fijo (mayor riesgo — al final de 8.0).
+      lleva `entityId`; `validateAssetManifest` agrupa por entidad (ids/capas globales siguen únicos)
+      y admite 64 o 128px. El Guardián conserva su contrato exacto de 4 capas vía `REQUIRED_LAYERS`
+      (runtime.ts sigue asumiendo que armor/weapon existen); cualquier otra entidad sólo necesita una
+      capa `body`. 3 tests nuevos (multi-entidad válida, entidad sin `body` rechazada, tamaño de frame
+      inválido rechazado); las 87 pruebas totales siguen verdes, incluida la reordenación exacta de
+      chequeos (capa duplicada antes que id duplicado) que un test existente ya fijaba.
+- [x] Decidido (2026-07-30): 8.0d (`SimulationWorld` de paso fijo) se pospone y se funde con 8.2/8.3
+      — ver Decisiones. No es un paso pendiente aparte; se retoma dentro de 8.2.
 - [ ] Pendiente: 8.1 a 8.8.
 
 ## Pruebas
