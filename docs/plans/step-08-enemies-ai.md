@@ -221,7 +221,17 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       donde "demasiado cerca" sí es alcanzable. 2 tests nuevos (5 reemplazan intentos fallidos, ver
       Resultados). 107 tests totales verdes. Todavía falta mapear `behaviors` → `movementStyle` para
       los 5 enemigos reales y wirear a `runtime.ts` — parte 2.
-- [ ] Pendiente: 8.4 (parte 2, mapeo real de los 5 enemigos + wiring a Phaser) a 8.8.
+- [x] Completado (2026-07-30, parcial): 8.4 (parte 2) mapeo real de comportamientos. Nuevo
+      `packages/game-data/src/behavior-profile.ts` (`resolveEnemyMovementStyle`): cualquier enemigo
+      con la etiqueta `ranged` o `keep_distance` kitea, el resto presiona en melee — sigue siendo
+      dato → comportamiento, nunca id → comportamiento. `EnemyBehaviorSchema` extraído como schema
+      nombrado (antes era un enum anónimo inline en `EnemyDefinitionSchema`) para poder tipar la
+      función. Probado contra los 5 enemigos reales del catálogo: `possessed_archer` y
+      `dark_shaman` (ambos `ranged`) → `keepDistance`; `corrupted_minion`, `root_brute`,
+      `unstable_beast` → `close`. 2 tests nuevos; 109 tests totales verdes. Todavía falta el
+      wiring a `runtime.ts`/Phaser (instanciar sprites reales, spawnear los 5 tipos) — eso espera a
+      tener arte real de enemigo, sigue fuera de alcance de este documento hasta entonces.
+- [ ] Pendiente: 8.5 a 8.8 (el wiring a Phaser de 8.4 se retoma cuando haya assets de enemigo).
 
 ## Pruebas
 

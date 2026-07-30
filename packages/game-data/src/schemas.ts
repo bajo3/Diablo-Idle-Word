@@ -108,6 +108,18 @@ export const RarityDefinitionSchema = z.strictObject({
   description: z.string().trim().min(1).max(300),
   tuningStatus: TuningStatusSchema,
 });
+export const EnemyBehaviorSchema = z.enum([
+  'melee',
+  'ranged',
+  'keep_distance',
+  'reposition',
+  'heal_allies',
+  'buff_allies',
+  'area_attack',
+  'stun',
+  'fast_pursuit',
+  'telegraphed_explosion',
+]);
 export const EnemyDefinitionSchema = z.strictObject({
   id: z.enum([
     'corrupted_minion',
@@ -117,22 +129,7 @@ export const EnemyDefinitionSchema = z.strictObject({
     'unstable_beast',
   ]),
   displayName: z.string().trim().min(1).max(80),
-  behaviors: z
-    .array(
-      z.enum([
-        'melee',
-        'ranged',
-        'keep_distance',
-        'reposition',
-        'heal_allies',
-        'buff_allies',
-        'area_attack',
-        'stun',
-        'fast_pursuit',
-        'telegraphed_explosion',
-      ]),
-    )
-    .min(1),
+  behaviors: z.array(EnemyBehaviorSchema).min(1),
   aiStates: z
     .array(
       z.enum([
@@ -343,6 +340,7 @@ export type GuardianAbility = z.infer<typeof GuardianAbilitySchema>;
 export type GuardianDefinition = z.infer<typeof GuardianDefinitionSchema>;
 export type ItemTypeDefinition = z.infer<typeof ItemTypeDefinitionSchema>;
 export type RarityDefinition = z.infer<typeof RarityDefinitionSchema>;
+export type EnemyBehavior = z.infer<typeof EnemyBehaviorSchema>;
 export type EnemyDefinition = z.infer<typeof EnemyDefinitionSchema>;
 export type EnemyAttackTuning = z.infer<typeof EnemyAttackTuningSchema>;
 export type EnemyTuning = z.infer<typeof EnemyTuningSchema>;
