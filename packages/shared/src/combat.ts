@@ -1,0 +1,295 @@
+/** Pure local combat contracts. No renderer, transport, storage, clock or RNG implementation leaks here. */
+export type GuardianAbilityKey = 'slash' | 'powerStrike' | 'whirlwind' | 'ironSkin';
+export type CombatVector = Readonly<{ x: number; y: number }>;
+export type CombatTarget = Readonly<{
+  id: string;
+  position: CombatVector;
+  armor: number;
+  health: number;
+}>;
+export type RandomSource = Readonly<{
+  nextInt(minimum: number, maximum: number): number;
+  next(): number;
+}>;
+export type GuardianCombatTuning = Readonly<{
+  formulaVersion: 'guardian-combat.1';
+  level: number;
+  strength: number;
+  dexterity: number;
+  vitality: number;
+  weaponDamage: readonly [number, number];
+  maxFury: number;
+  criticalBaseChance: number;
+  criticalPerDexterity: number;
+  criticalCap: number;
+  criticalMultiplier: number;
+  armorDenominatorBase: number;
+  armorDenominatorPerLevel: number;
+  armorReductionCap: number;
+  furyOnDamageTaken: number;
+  furyDecayDelayMs: number;
+  furyDecayPerSecond: number;
+  battleThirst: Readonly<{ healFraction: number; capFraction: number; windowMs: number }>;
+  abilities: Readonly<Record<GuardianAbilityKey, GuardianAbilityTuning>>;
+}>;
+export type GuardianAbilityTuning = Readonly<{
+  id: string;
+  furyCost: number;
+  cooldownMs: number;
+  damageMultiplier: number;
+  rangePx?: number;
+  arcDegrees?: number;
+  maxTargets?: number;
+  impactMs?: number;
+  recoveryMs?: number;
+  radiusPx?: number;
+  tickOffsetsMs?: readonly number[];
+  durationMs?: number;
+  movementMultiplier?: number;
+  knockbackPx?: number;
+  damageTakenMultiplier?: number;
+  furyOnHit?: number;
+}>;
+export type GuardianCombatState = Readonly<{
+  health: number;
+  maxHealth: number;
+  fury: number;
+  armor: number;
+  cooldownEndsAt: Readonly<Partial<Record<GuardianAbilityKey, number>>>;
+  ironSkinStartsAt: number | undefined;
+  ironSkinEndsAt: number | undefined;
+  lastCombatAt: number;
+  furyDecayCarryMs: number;
+  battleThirstHeals: readonly Readonly<{ defeatId: string; at: number; amount: number }>[];
+}>;
+export type DamageResult = Readonly<{
+  base: number;
+  mitigation: number;
+  critical: boolean;
+  amount: number;
+}>;
+export type AbilityAttempt = Readonly<{
+  executionId: string;
+  ability: GuardianAbilityKey;
+  at: number;
+}>;
+export type AbilityAcceptance = Readonly<{
+  accepted: true;
+  state: GuardianCombatState;
+  ability: GuardianAbilityKey;
+  executionId: string;
+  at: number;
+}>;
+export type AbilityRejection = Readonly<{ accepted: false; reason: 'cooldown' | 'fury' }>;
+export type AbilityAttemptResult = AbilityAcceptance | AbilityRejection;
+
+const clamp = (value: number, minimum: number, maximum: number) =>
+  Math.min(maximum, Math.max(minimum, value));
+
+export function createGuardianCombatState(tuning: GuardianCombatTuning): GuardianCombatState {
+  return {
+    health: 100 + tuning.vitality * 10,
+    maxHealth: 100 + tuning.vitality * 10,
+    fury: 0,
+    armor: 20 + Math.floor(tuning.strength * 0.5),
+    cooldownEndsAt: {},
+    ironSkinStartsAt: undefined,
+    ironSkinEndsAt: undefined,
+    lastCombatAt: 0,
+    furyDecayCarryMs: 0,
+    battleThirstHeals: [],
+  };
+}
+
+export function criticalChance(tuning: GuardianCombatTuning): number {
+  return clamp(
+    tuning.criticalBaseChance + tuning.dexterity * tuning.criticalPerDexterity,
+    0,
+    tuning.criticalCap,
+  );
+}
+
+export function armorMitigation(
+  armor: number,
+  level: number,
+  tuning: GuardianCombatTuning,
+): number {
+  const denominator = armor + tuning.armorDenominatorBase + tuning.armorDenominatorPerLevel * level;
+  return denominator <= 0 ? 0 : clamp(armor / denominator, 0, tuning.armorReductionCap);
+}
+
+export function resolvePhysicalDamage(
+  tuning: GuardianCombatTuning,
+  targetArmor: number,
+  abilityMultiplier: number,
+  random: RandomSource,
+): DamageResult {
+  const rolledWeaponDamage = random.nextInt(tuning.weaponDamage[0], tuning.weaponDamage[1]);
+  const base = rolledWeaponDamage + tuning.strength;
+  const mitigation = armorMitigation(targetArmor, tuning.level, tuning);
+  const critical = random.next() < criticalChance(tuning);
+  const amount = Math.max(
+    0,
+    Math.round(
+      base * abilityMultiplier * (1 - mitigation) * (critical ? tuning.criticalMultiplier : 1),
+    ),
+  );
+  return { base, mitigation, critical, amount };
+}
+
+export function tryActivateAbility(
+  tuning: GuardianCombatTuning,
+  state: GuardianCombatState,
+  attempt: AbilityAttempt,
+): AbilityAttemptResult {
+  const ability = tuning.abilities[attempt.ability];
+  if ((state.cooldownEndsAt[attempt.ability] ?? 0) > attempt.at)
+    return { accepted: false, reason: 'cooldown' };
+  if (state.fury < ability.furyCost) return { accepted: false, reason: 'fury' };
+  return {
+    accepted: true,
+    ability: attempt.ability,
+    executionId: attempt.executionId,
+    at: attempt.at,
+    state: {
+      ...state,
+      fury: state.fury - ability.furyCost,
+      cooldownEndsAt: {
+        ...state.cooldownEndsAt,
+        [attempt.ability]: attempt.at + ability.cooldownMs,
+      },
+      ...(attempt.ability === 'ironSkin'
+        ? {
+            ironSkinStartsAt: attempt.at + (ability.impactMs ?? 0),
+            ironSkinEndsAt: attempt.at + (ability.impactMs ?? 0) + (ability.durationMs ?? 0),
+          }
+        : {}),
+      lastCombatAt: attempt.at,
+    },
+  };
+}
+
+export function applyDamageTaken(
+  tuning: GuardianCombatTuning,
+  state: GuardianCombatState,
+  incomingDamage: number,
+  at: number,
+): GuardianCombatState {
+  if (state.health === 0) return state;
+  const ironSkinMultiplier =
+    state.ironSkinStartsAt !== undefined &&
+    state.ironSkinStartsAt <= at &&
+    state.ironSkinEndsAt !== undefined &&
+    state.ironSkinEndsAt > at
+      ? (tuning.abilities.ironSkin.damageTakenMultiplier ?? 1)
+      : 1;
+  const amount = Math.max(
+    0,
+    Math.round(
+      incomingDamage *
+        (1 - armorMitigation(state.armor, tuning.level, tuning)) *
+        ironSkinMultiplier,
+    ),
+  );
+  return {
+    ...state,
+    health: clamp(state.health - amount, 0, state.maxHealth),
+    fury: amount > 0 ? clamp(state.fury + tuning.furyOnDamageTaken, 0, tuning.maxFury) : state.fury,
+    lastCombatAt: amount > 0 ? at : state.lastCombatAt,
+    furyDecayCarryMs: amount > 0 ? 0 : state.furyDecayCarryMs,
+  };
+}
+
+export function applySuccessfulHit(
+  tuning: GuardianCombatTuning,
+  state: GuardianCombatState,
+  ability: GuardianAbilityKey,
+  at: number,
+): GuardianCombatState {
+  const fury = tuning.abilities[ability].furyOnHit ?? 0;
+  return {
+    ...state,
+    fury: clamp(state.fury + fury, 0, tuning.maxFury),
+    lastCombatAt: at,
+    furyDecayCarryMs: 0,
+  };
+}
+
+export function advanceGuardianCombat(
+  tuning: GuardianCombatTuning,
+  state: GuardianCombatState,
+  from: number,
+  to: number,
+): GuardianCombatState {
+  const expired = {
+    ...state,
+    ironSkinStartsAt:
+      state.ironSkinEndsAt !== undefined && state.ironSkinEndsAt <= to
+        ? undefined
+        : state.ironSkinStartsAt,
+    ironSkinEndsAt:
+      state.ironSkinEndsAt !== undefined && state.ironSkinEndsAt <= to
+        ? undefined
+        : state.ironSkinEndsAt,
+    battleThirstHeals: state.battleThirstHeals.filter(
+      (entry) => entry.at > to - tuning.battleThirst.windowMs,
+    ),
+  };
+  if (to <= from || to <= state.lastCombatAt + tuning.furyDecayDelayMs) return expired;
+  const decayStart = Math.max(from, state.lastCombatAt + tuning.furyDecayDelayMs);
+  const elapsedMs = expired.furyDecayCarryMs + to - decayStart;
+  const wholeSeconds = Math.floor(elapsedMs / 1000);
+  if (wholeSeconds === 0) return { ...expired, furyDecayCarryMs: elapsedMs };
+  return {
+    ...expired,
+    fury: clamp(expired.fury - wholeSeconds * tuning.furyDecayPerSecond, 0, tuning.maxFury),
+    furyDecayCarryMs: elapsedMs % 1000,
+  };
+}
+
+export function applyBattleThirst(
+  tuning: GuardianCombatTuning,
+  state: GuardianCombatState,
+  defeatId: string,
+  at: number,
+): GuardianCombatState {
+  if (state.battleThirstHeals.some((entry) => entry.defeatId === defeatId)) return state;
+  const recent = state.battleThirstHeals.filter(
+    (entry) => entry.at > at - tuning.battleThirst.windowMs,
+  );
+  const cap = Math.round(state.maxHealth * tuning.battleThirst.capFraction);
+  const alreadyHealed = recent.reduce((total, entry) => total + entry.amount, 0);
+  const amount = clamp(
+    Math.round(state.maxHealth * tuning.battleThirst.healFraction),
+    0,
+    Math.max(0, cap - alreadyHealed),
+  );
+  return {
+    ...state,
+    health: clamp(state.health + amount, 0, state.maxHealth),
+    battleThirstHeals: [...recent, { defeatId, at, amount }],
+  };
+}
+
+export function targetWithinArc(
+  origin: CombatVector,
+  facing: CombatVector,
+  target: CombatTarget,
+  rangePx: number,
+  arcDegrees: number,
+): boolean {
+  const dx = target.position.x - origin.x;
+  const dy = target.position.y - origin.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance === 0 || distance > rangePx) return false;
+  const dot = (dx / distance) * facing.x + (dy / distance) * facing.y;
+  return dot >= Math.cos((arcDegrees * Math.PI) / 360);
+}
+
+export function targetWithinRadius(
+  origin: CombatVector,
+  target: CombatTarget,
+  radiusPx: number,
+): boolean {
+  return Math.hypot(target.position.x - origin.x, target.position.y - origin.y) <= radiusPx;
+}

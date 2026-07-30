@@ -1,0 +1,10 @@
+.agents/
+docs/game/
+GOAL.md
+GAME_DESIGN.md
+PLANS.md
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+scripts/*.ps1

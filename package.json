@@ -1,0 +1,46 @@
+{
+  "name": "la-brecha-oscura",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Base operativa del ARPG web La Brecha Oscura.",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @brecha/shared --filter @brecha/game-data build && pnpm --stream --parallel --filter @brecha/web --filter @brecha/server dev",
+    "build": "pnpm db:generate && pnpm -r --if-present build",
+    "lint": "eslint .",
+    "typecheck": "pnpm db:generate && pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @brecha/shared --filter @brecha/game-data build && vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d postgres",
+    "db:stop": "docker compose stop postgres",
+    "db:status": "docker compose ps postgres",
+    "db:generate": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:backup": "tsx scripts/db-backup.ts",
+    "db:restore:smoke": "tsx scripts/db-restore-smoke.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/react": "16.3.2",
+    "@types/node": "26.1.2",
+    "@types/pg": "8.15.6",
+    "dotenv": "17.4.2",
+    "eslint": "10.8.0",
+    "globals": "17.8.0",
+    "jsdom": "30.0.0",
+    "pg": "8.16.3",
+    "prettier": "3.9.6",
+    "prisma": "7.9.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}

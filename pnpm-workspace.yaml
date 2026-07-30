@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  '@prisma/engines': true
+  argon2: true
+  esbuild: true
+  prisma: true
+
+engineStrict: true
+nodeVersion: 24.15.0
+preferWorkspacePackages: true
