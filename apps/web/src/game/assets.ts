@@ -10,6 +10,8 @@ export type AnimationRange = Readonly<{
 }>;
 export type AssetManifestEntry = Readonly<{
   id: string;
+  /** Groups layers that belong to the same visual entity (Guardian today, an enemy from Paso 8). */
+  entityId: string;
   layer: AssetLayer;
   path: string;
   frame: Readonly<{ width: number; height: number; columns: number; rows: number; count: number }>;
@@ -23,6 +25,15 @@ export type AssetManifestEntry = Readonly<{
 
 const directions = ['up', 'down', 'left', 'right'] as const;
 const states = ['idle', 'moving', 'attacking', 'casting', 'channeling'] as const;
+const ALL_LAYERS: readonly AssetLayer[] = ['shadow', 'body', 'armor', 'weapon'];
+/**
+ * Entities with a known, exact required layer set (preserves the Guardian's existing contract -
+ * runtime.ts hardcodes that its armor/weapon layers exist). Any entity not listed here only needs
+ * a non-empty, duplicate-free layer set that includes `body` - the general Paso 8+ case.
+ */
+const REQUIRED_LAYERS: Readonly<Record<string, readonly AssetLayer[]>> = {
+  guardian_placeholder: ['shadow', 'body', 'armor', 'weapon'],
+};
 
 export function animationRange(state: LocalCharacterState, direction: Direction4): AnimationRange {
   const directionIndex = directions.indexOf(direction);
@@ -47,6 +58,7 @@ export const localAssetManifest: readonly AssetManifestEntry[] = [
   'weapon',
 ].map((layer) => ({
   id: `guardian_placeholder_${layer}`,
+  entityId: 'guardian_placeholder',
   layer: layer as AssetLayer,
   path: `/assets/characters/guardian_placeholder_${layer}.svg`,
   frame: { width: 64, height: 64, columns: 4, rows: 4, count: 16 },
@@ -58,27 +70,36 @@ export const localAssetManifest: readonly AssetManifestEntry[] = [
   license: 'CC0-1.0',
 }));
 
+function validFrameSize(width: number, height: number): boolean {
+  return (width === 64 && height === 64) || (width === 128 && height === 128);
+}
+
+/**
+ * Validates one or more entities' worth of layered assets. Generalized from a Guardian-only
+ * validator (Paso 6/7) so Paso 8's enemies and Paso 10's boss can describe their own layers/frame
+ * sizes without a second validator - but the Guardian's own exact 4-layer contract is preserved
+ * via REQUIRED_LAYERS, since runtime.ts still hardcodes that those layers exist.
+ */
 export function validateAssetManifest(entries: readonly AssetManifestEntry[]): void {
-  const expectedLayers: readonly AssetLayer[] = ['shadow', 'body', 'armor', 'weapon'];
-  if (entries.length !== expectedLayers.length) throw new Error('Missing layer.');
-  const baseline = entries[0];
-  if (baseline === undefined) throw new Error('Missing layer.');
+  if (entries.length === 0) throw new Error('Missing layer.');
   const ids = new Set<string>();
-  const layers = new Set<AssetLayer>();
+  const layersByEntity = new Map<string, Set<AssetLayer>>();
+  const baselineByEntity = new Map<string, AssetManifestEntry>();
   for (const entry of entries) {
-    if (!/^[a-z0-9_]+$/.test(entry.id) || !expectedLayers.includes(entry.layer))
+    if (!/^[a-z0-9_]+$/.test(entry.id) || !ALL_LAYERS.includes(entry.layer))
       throw new Error('Invalid asset id.');
+    const layers = layersByEntity.get(entry.entityId) ?? new Set<AssetLayer>();
     if (layers.has(entry.layer)) throw new Error(`Duplicate layer: ${entry.layer}.`);
     layers.add(entry.layer);
+    layersByEntity.set(entry.entityId, layers);
     if (ids.has(entry.id)) throw new Error('Duplicate asset id.');
     ids.add(entry.id);
-    if (entry.id !== `guardian_placeholder_${entry.layer}`)
+    if (entry.id !== `${entry.entityId}_${entry.layer}`)
       throw new Error(`Unexpected asset id: ${entry.id}.`);
     if (
       !entry.path.startsWith('/assets/') ||
       entry.frame.count !== entry.frame.columns * entry.frame.rows ||
-      entry.frame.width !== 64 ||
-      entry.frame.height !== 64
+      !validFrameSize(entry.frame.width, entry.frame.height)
     )
       throw new Error(`Invalid frame contract for ${entry.id}.`);
     if (
@@ -88,6 +109,8 @@ export function validateAssetManifest(entries: readonly AssetManifestEntry[]): v
       throw new Error(`Invalid directions for ${entry.id}.`);
     if (entry.source !== 'project-generated' || entry.license !== 'CC0-1.0')
       throw new Error(`Incomplete metadata for ${entry.id}.`);
+    const baseline = baselineByEntity.get(entry.entityId) ?? entry;
+    baselineByEntity.set(entry.entityId, baseline);
     if (
       JSON.stringify(entry.frame) !== JSON.stringify(baseline.frame) ||
       JSON.stringify(entry.origin) !== JSON.stringify(baseline.origin) ||
@@ -114,6 +137,18 @@ export function validateAssetManifest(entries: readonly AssetManifestEntry[]): v
       )
     )
       throw new Error(`Orphan or missing animation for ${entry.id}.`);
+  }
+  for (const [entityId, layers] of layersByEntity) {
+    const requiredLayers = REQUIRED_LAYERS[entityId];
+    if (requiredLayers !== undefined) {
+      if (
+        layers.size !== requiredLayers.length ||
+        !requiredLayers.every((layer) => layers.has(layer))
+      )
+        throw new Error('Missing layer.');
+    } else if (!layers.has('body')) {
+      throw new Error(`Entity is missing a body layer: ${entityId}.`);
+    }
   }
 }
 

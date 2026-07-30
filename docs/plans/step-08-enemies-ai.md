@@ -147,14 +147,20 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
 ## Progreso
 
 - [x] Completado (2026-07-30): 8.0a daño simétrico. `resolveAttack` en `packages/shared/src/combat.ts`;
-  `resolvePhysicalDamage` delega en él (regresión probada por construcción). 4 tests nuevos.
+      `resolvePhysicalDamage` delega en él (regresión probada por construcción). 4 tests nuevos.
 - [x] Completado (2026-07-30): 8.0b FSM visual de 11 estados. `domain.ts` reusa
-  `CharacterAnimationState` de `@brecha/shared` en vez de un union propio más angosto;
-  `resolveCharacterState` implementa las reglas de prioridad de GOAL.md 6.1 (`dead` absorbente,
-  `downed` bloquea ataques, `stunned` bloquea movimiento+habilidades). 5 tests nuevos. Todavía sin
-  wiring en `runtime.ts` — no hay ningún productor real de esos estados hasta 8.4/8.6, wirearlo
-  antes sería código muerto.
-- [ ] Pendiente: 8.0c validador de assets generalizado (`assets.ts`, multi-entidad, 64/128px).
+      `CharacterAnimationState` de `@brecha/shared` en vez de un union propio más angosto;
+      `resolveCharacterState` implementa las reglas de prioridad de GOAL.md 6.1 (`dead` absorbente,
+      `downed` bloquea ataques, `stunned` bloquea movimiento+habilidades). 5 tests nuevos. Todavía sin
+      wiring en `runtime.ts` — no hay ningún productor real de esos estados hasta 8.4/8.6, wirearlo
+      antes sería código muerto.
+- [x] Completado (2026-07-30): 8.0c validador de assets generalizado. `AssetManifestEntry` ahora
+  lleva `entityId`; `validateAssetManifest` agrupa por entidad (ids/capas globales siguen únicos)
+  y admite 64 o 128px. El Guardián conserva su contrato exacto de 4 capas vía `REQUIRED_LAYERS`
+  (runtime.ts sigue asumiendo que armor/weapon existen); cualquier otra entidad sólo necesita una
+  capa `body`. 3 tests nuevos (multi-entidad válida, entidad sin `body` rechazada, tamaño de frame
+  inválido rechazado); las 87 pruebas totales siguen verdes, incluida la reordenación exacta de
+  chequeos (capa duplicada antes que id duplicado) que un test existente ya fijaba.
 - [ ] Pendiente: 8.0d `SimulationWorld` de paso fijo (mayor riesgo — al final de 8.0).
 - [ ] Pendiente: 8.1 a 8.8.
 

@@ -99,6 +99,48 @@ describe('Paso 6 local game contracts', () => {
     ).toThrow('animation');
   });
 
+  it('validates a second entity alongside the Guardian without mixing their layer contracts', () => {
+    const enemyBody = {
+      id: 'corrupted_minion_body',
+      entityId: 'corrupted_minion',
+      layer: 'body' as const,
+      path: '/assets/enemies/corrupted_minion_body.png',
+      frame: { width: 128, height: 128, columns: 4, rows: 4, count: 16 },
+      directions: ['up', 'down', 'left', 'right'] as const,
+      origin: { x: 0.5, y: 1 },
+      offset: { x: 0, y: 0 },
+      animations: localAssetManifest[0]!.animations,
+      source: 'project-generated' as const,
+      license: 'CC0-1.0' as const,
+    };
+    expect(() => validateAssetManifest([...localAssetManifest, enemyBody])).not.toThrow();
+  });
+  it('rejects a non-Guardian entity that has no body layer', () => {
+    const enemyShadowOnly = {
+      id: 'corrupted_minion_shadow',
+      entityId: 'corrupted_minion',
+      layer: 'shadow' as const,
+      path: '/assets/enemies/corrupted_minion_shadow.png',
+      frame: { width: 64, height: 64, columns: 4, rows: 4, count: 16 },
+      directions: ['up', 'down', 'left', 'right'] as const,
+      origin: { x: 0.5, y: 1 },
+      offset: { x: 0, y: 0 },
+      animations: localAssetManifest[0]!.animations,
+      source: 'project-generated' as const,
+      license: 'CC0-1.0' as const,
+    };
+    expect(() => validateAssetManifest([...localAssetManifest, enemyShadowOnly])).toThrow(
+      'missing a body layer',
+    );
+  });
+  it('rejects a frame size other than the two allowed (64 or 128)', () => {
+    expect(() =>
+      validateAssetManifest([
+        { ...localAssetManifest[0]!, frame: { ...localAssetManifest[0]!.frame, width: 96 } },
+        ...localAssetManifest.slice(1),
+      ]),
+    ).toThrow('frame contract');
+  });
   it('requires exact post-load frame counts and aligned state/direction ranges', () => {
     for (const asset of localAssetManifest) {
       expect(() => validateLoadedFrameCount(asset, 17)).not.toThrow();
