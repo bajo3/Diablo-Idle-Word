@@ -247,8 +247,15 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       `maxHealth`/`armor`/`moveSpeedPxPerSec`. 4 tests nuevos; 119 tests totales verdes. Todavía sin
       wiring a `game-data`/`runtime.ts` (sin visual/nombre de élite en el HUD todavía) — eso llega
       junto con el resto del wiring de Phaser pendiente.
-- [ ] Pendiente: 8.7 y 8.8 (el wiring a Phaser de 8.4/8.5/8.6 se retoma cuando haya assets de
-      enemigo).
+- [x] Completado (2026-07-30): 8.7 muerte, limpieza y recompensas pendientes. Nuevo
+      `packages/shared/src/enemy-lifecycle.ts`: `EnemyRewardLedger` deduplica XP pendiente por
+      `enemyInstanceId` (mismo patrón de dedup que `applyBattleThirst`, así un evento de derrota
+      repetido/reenviado nunca paga dos veces — sin inventario real todavía, sólo el contador de XP
+      pendiente que pide GOAL.md); `isReadyForCleanup` da el momento en que una entidad muerta puede
+      liberarse, separado de la muerte misma (inmediata vía `decideEnemyState`) para dejar tiempo a
+      una animación de muerte. 3 tests nuevos; 122 tests totales verdes. Sigue sin wiring a
+      `runtime.ts` (no hay entidades de enemigo reales que limpiar todavía).
+- [ ] Pendiente: 8.8 (el wiring a Phaser de 8.4-8.7 se retoma cuando haya assets de enemigo).
 
 ## Pruebas
 
