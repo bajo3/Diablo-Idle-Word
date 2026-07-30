@@ -2679,29 +2679,52 @@ Estado: [ ]
 
 ## Tareas
 
-- [ ] Crear sistema base de enemigo.
-- [ ] Crear máquina de estados.
-- [ ] Crear detección.
-- [ ] Crear navegación simple.
-- [ ] Implementar Esbirro.
-- [ ] Implementar Arquero.
-- [ ] Implementar Chamán.
-- [ ] Implementar Bruto.
-- [ ] Implementar Bestia.
+- [-] Crear sistema base de enemigo. Tuning real de los 5 enemigos (`enemyTuning` en
+      `game-data`) y estado de simulación puro (`EnemySimState`/`stepEnemy`) existen y están
+      probados; falta la entidad real de Phaser (sprite, hitbox) — espera a que existan assets.
+- [x] Crear máquina de estados. `packages/shared/src/enemy-ai.ts` (`decideEnemyState`), 9 estados,
+      prioridad/interrupción, 7 tests.
+- [x] Crear detección. Radio + línea de visión para adquirir, histéresis por distancia
+      (`loseTargetRadiusPx > detectRadiusPx`) para sostener, dentro de `decideEnemyState`.
+- [x] Crear navegación simple. `packages/shared/src/steering.ts` (seek/flee/arrive/separación,
+      sin A*) + `enemy-simulation.ts` (`stepEnemy`, paso fijo determinista).
+- [-] Implementar Esbirro. Tuning + `movementStyle: 'close'` resueltos por `behaviors`; sin
+      sprite/instancia real en `runtime.ts`.
+- [-] Implementar Arquero. Tuning + `movementStyle: 'keepDistance'` (kitea bajo la mitad de su
+      rango) resueltos; sin sprite/proyectil real disparado.
+- [-] Implementar Chamán. Tuning + `movementStyle: 'keepDistance'` resueltos; el comportamiento
+      `heal_allies`/`buff_allies` (priorizar aliados) no está implementado todavía.
+- [-] Implementar Bruto. Tuning + `movementStyle: 'close'` resueltos; `area_attack`/`stun` no
+      implementados todavía (proyectiles/telégrafos genéricos existen en `projectiles.ts`, sin
+      atarlos a este enemigo en particular).
+- [-] Implementar Bestia. Tuning + `movementStyle: 'close'` resueltos; `telegraphed_explosion` no
+      atado a este enemigo todavía (el primitivo `Telegraph` genérico ya existe y está probado).
 - [ ] Implementar estados visuales de enemigos.
 - [ ] Implementar animaciones placeholder de enemigos.
-- [ ] Implementar muerte.
-- [ ] Implementar drops provisionales.
-- [ ] Implementar al menos dos modificadores élite.
-- [ ] Agregar pruebas de estados.
+- [-] Implementar muerte. `dead` es absorbente en la FSM (inmediata); `isReadyForCleanup` separa
+      el momento de limpieza de la muerte misma para dejar tiempo a una animación — sin entidades
+      reales que limpiar todavía.
+- [-] Implementar drops provisionales. `EnemyRewardLedger` acumula XP pendiente deduplicado por
+      instancia (mismo patrón que Sed de batalla); sin drops de items — fuera de alcance hasta que
+      exista inventario.
+- [x] Implementar al menos dos modificadores élite. `packages/shared/src/elites.ts`: Veloz (×1.5
+      velocidad) y Resistente (×1.75 vida, +10 armadura), selección vía RNG seedeado.
+- [x] Agregar pruebas de estados. 122 pruebas verdes cubren FSM, detección, steering, simulación,
+      proyectiles/telégrafos, élites y ciclo de vida — ver
+      `docs/plans/step-08-enemies-ai.md` para el detalle milestone por milestone.
 
 ## Criterios de aceptación
 
-- [ ] Los cinco enemigos tienen comportamientos diferentes.
-- [ ] Los ataques peligrosos se anuncian.
-- [ ] El Chamán prioriza aliados válidos.
-- [ ] La Bestia no explota sin señal previa.
-- [ ] Las entidades muertas se limpian correctamente.
+- [ ] Los cinco enemigos tienen comportamientos diferentes. Parcial: dos estilos de movimiento
+      distintos (`close`/`keepDistance`) mapeados a los 5 enemigos reales por sus `behaviors`, pero
+      las habilidades específicas (curación, área, aturdimiento, explosión) no están implementadas.
+- [ ] Los ataques peligrosos se anuncian. El primitivo `Telegraph` (aviso → resolución, con o sin
+      repetición) existe y está probado, pero no está atado a ningún ataque de enemigo concreto.
+- [ ] El Chamán prioriza aliados válidos. No implementado.
+- [ ] La Bestia no explota sin señal previa. No implementado (el primitivo de telégrafo existe,
+      falta la instancia real).
+- [ ] Las entidades muertas se limpian correctamente. La lógica temporal (`isReadyForCleanup`)
+      existe y está probada; no hay entidades reales todavía.
 
 ---
 
@@ -3316,6 +3339,7 @@ También debe actualizar el registro siguiente.
 | 2026-07-29 | 5 | Completado | Navegación protegida, recuperación no rotativa de sesión, estado de red/mantenimiento y acciones single-flight con intención idempotente | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 32 pruebas unitarias/UI, 12 integraciones PostgreSQL/HTTP/WS, build, migraciones y seed doble | Paso 6: instalar y configurar Phaser |
 | 2026-07-29 | 6 | Completado | Isla Phaser desacoplada con escenas Boot/Test, movimiento y colisiones Arcade, FSM y capas animadas validadas, ciclo de vida seguro y checkpoint autoritativo idempotente | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 41 pruebas unitarias/UI, 13 integraciones PostgreSQL/HTTP, build, 6 migraciones, seed doble, backup/restore SHA-256 y smoke real de canvas/remontaje | Paso 7: implementar combate del Guardián |
 | 2026-07-30 | 7 | Completado | Combate del Guardián cerrado tras auditoría independiente: RNG determinista seedeado y orden de blancos por distancia (antes dependían de orden de inserción del Map), daño entrante real vía `applyIncomingDamage` (Piel de hierro y Sed de batalla eran inertes en el juego pese a tests unitarios verdes), presentación visual atada a `GAME_DATA.animations` sin literales mágicos, y dos bugs reales que impedían todo uso en navegador real: `fetch` nativo invocado con receptor incorrecto (Illegal invocation en todo navegador) y `LocalCombatController` construido como campo de clase antes de que `this.time` de Phaser existiera. Verificado en vivo: registro, Guardián, canvas renderizando personaje/capas/dummies/hazard, ataque activando cooldown | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 77 pruebas unitarias/UI, 13 integraciones PostgreSQL/HTTP, build, smoke real de navegador con sesión completa (registro→Guardián→partida→canvas visible) | Paso 8: sistema base de enemigos |
+| 2026-07-30 | 8 | En curso | Núcleo puro de IA de enemigos completo y probado en `packages/shared`/`packages/game-data`: tuning real de los 5 enemigos (8.1), FSM de 9 estados con detección por histéresis (8.2), `SimulationWorld` de paso fijo componiendo FSM+steering (8.2 parte 2, fusionado desde 8.0d una vez hubo consumidores reales), navegación seek/flee/arrive/separación sin A* (8.3), diferenciación de movimiento melee/ranged mapeada a los 5 enemigos por sus `behaviors` (8.4), proyectiles y telégrafos reutilizables por el jefe (8.5), dos modificadores élite con RNG seedeado (8.6), y limpieza/recompensas de muerte con XP deduplicada (8.7). Deliberadamente sin cerrar: nada de esto está todavía instanciado en `runtime.ts` ni es visible/jugable en el navegador — bloqueado en tener assets de sprite reales para los 5 enemigos (ninguno generado esta sesión), y en construir el adaptador `apps/web/src/game/sim/` que los conecte a Phaser. Los criterios de aceptación de comportamientos específicos por enemigo (Chamán prioriza aliados, Bestia telegrafía su explosión) tampoco están implementados, sólo sus primitivos genéricos | Instalación congelada, formato, lint, typecheck, 122 pruebas unitarias nuevas sobre el núcleo puro (enemy-ai, steering, enemy-simulation, behavior-profile, projectiles, elites, enemy-lifecycle) — sin smoke de navegador todavía, no hay nada visual que probar | Paso 8 (continuación): generar assets de enemigo y construir el adaptador de Phaser, o adelantar detalle de comportamiento por enemigo (Chamán/Bestia) sobre el núcleo ya probado |
 
 ---
 

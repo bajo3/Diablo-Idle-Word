@@ -255,7 +255,16 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       liberarse, separado de la muerte misma (inmediata vía `decideEnemyState`) para dejar tiempo a
       una animación de muerte. 3 tests nuevos; 122 tests totales verdes. Sigue sin wiring a
       `runtime.ts` (no hay entidades de enemigo reales que limpiar todavía).
-- [ ] Pendiente: 8.8 (el wiring a Phaser de 8.4-8.7 se retoma cuando haya assets de enemigo).
+- [-] Parcial (2026-07-30): 8.8 matriz de pruebas y presupuesto de rendimiento. 123 pruebas
+  verdes cubren todo el núcleo puro (8.1-8.7); nuevo test de presupuesto de rendimiento en
+  `enemy-simulation.test.ts` — 40 enemigos × 60 ticks (1 segundo simulado a 60 Hz) con
+  separación entre todos ellos corre en ~56ms de cómputo puro, muy por debajo del presupuesto.
+  **No** cerrado: sigue faltando el smoke real de navegador y el cierre en GOAL.md, porque no
+  hay assets de sprite de enemigo ni adaptador de Phaser todavía — no hay nada visual que
+  probar. `GOAL.md` (Paso 8) se actualizó para reflejar exactamente este estado (tareas
+  marcadas `[x]`/`[-]`/`[ ]` una por una, fila nueva en el Registro de progreso), sin marcar el
+  paso como completado.
+- [ ] Pendiente: el wiring a Phaser de 8.4-8.7 (requiere assets de enemigo) y el cierre real de 8.8.
 
 ## Pruebas
 
@@ -313,5 +322,23 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
 
 ## Trabajo pendiente
 
-Al cerrar 8.0 sin haber completado 8.1-8.8 en la misma sesión, este documento queda como fuente de
-verdad para continuar sin releer todo el historial de la sesión que lo escribió.
+Al cerrar esta sesión sin poder cerrar 8.8 del todo, este documento queda como fuente de verdad
+para continuar sin releer todo el historial de la sesión que lo escribió. Estado real: todo el
+núcleo puro de 8.0-8.7 está implementado, probado (123 tests) y documentado — FSM de IA, steering,
+`SimulationWorld` (`stepEnemy`), mapeo de comportamiento a estilo de movimiento para los 5 enemigos
+reales, proyectiles/telégrafos, élites, y ciclo de vida de muerte/recompensas. Lo que falta, en
+orden de bloqueo:
+
+1. **Assets de sprite para los 5 enemigos** (bloqueante duro — nada de lo siguiente tiene sentido
+   sin esto). Requiere una decisión de presupuesto/plan de PixelLab explícita del usuario, igual
+   que se hizo para el Guardián/Ranger en la fase de scaffolding.
+2. El adaptador de Phaser (`apps/web/src/game/sim/`: `world.ts`, `entities.ts`, `projectiles.ts`,
+   `telegraphs.ts`) que instancia los sprites, corre `stepEnemy` en el `update()` de la escena y
+   dibuja proyectiles/telégrafos reales.
+3. Comportamientos específicos por enemigo que van más allá de melee-vs-ranged genérico: el Chamán
+   priorizando aliados válidos (`heal_allies`/`buff_allies`), la Bestia con su telégrafo de
+   explosión atado (`telegraphed_explosion`), el Bruto con área/aturdimiento (`area_attack`/
+   `stun`) — los primitivos genéricos ya existen (`projectiles.ts`, `Telegraph`), falta conectarlos
+   a estos comportamientos concretos.
+4. Smoke real de navegador (equivalente al que cerró el Paso 7) y el cierre final en `GOAL.md`
+   (Estado del Paso 8 → `[x]`, última fila del Registro).

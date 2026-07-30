@@ -129,4 +129,35 @@ describe('enemy simulation step', () => {
     );
     expect(comfortable.position).toEqual({ x: 50, y: 0 });
   });
+
+  it('stays well within a 60fps compute budget for 40 enemies over one simulated second (Paso 8.8)', () => {
+    const enemyCount = 40;
+    const ticksPerSecond = 60;
+    let enemies = Array.from({ length: enemyCount }, (_, index) =>
+      state({ aiState: 'chase', position: { x: index, y: 0 } }),
+    );
+    const startedAt = performance.now();
+    for (let tick = 0; tick < ticksPerSecond; tick += 1) {
+      const fromMs = (tick * 1000) / ticksPerSecond;
+      const toMs = ((tick + 1) * 1000) / ticksPerSecond;
+      enemies = enemies.map((enemy) =>
+        stepEnemy(
+          enemy,
+          input({
+            targetPosition: { x: 300, y: 0 },
+            neighbors: enemies
+              .filter((other) => other !== enemy)
+              .map((other) => ({
+                position: other.position,
+              })),
+            fromMs,
+            toMs,
+          }),
+          tuning,
+        ),
+      );
+    }
+    const elapsedMs = performance.now() - startedAt;
+    expect(elapsedMs).toBeLessThan(200);
+  });
 });
