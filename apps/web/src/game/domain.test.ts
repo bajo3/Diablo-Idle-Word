@@ -6,7 +6,7 @@ import {
   validateAssetManifest,
   validateLoadedFrameCount,
 } from './assets';
-import { motionFromInput } from './domain';
+import { motionFromInput, resolveCharacterState } from './domain';
 
 describe('Paso 6 local game contracts', () => {
   it('normalizes diagonal movement and keeps a valid four-direction facing', () => {
@@ -17,6 +17,32 @@ describe('Paso 6 local game contracts', () => {
     expect(motionFromInput(0, 0, 'left')).toEqual({ x: 0, y: 0, direction: 'left', state: 'idle' });
   });
 
+  it('never interrupts dead, in either direction', () => {
+    expect(resolveCharacterState('dead', 'idle')).toBe('dead');
+    expect(resolveCharacterState('dead', 'moving')).toBe('dead');
+    expect(resolveCharacterState('idle', 'dead')).toBe('dead');
+    expect(resolveCharacterState('attacking', 'dead')).toBe('dead');
+  });
+  it('blocks attack-like requests while downed but allows everything else', () => {
+    expect(resolveCharacterState('downed', 'attacking')).toBe('downed');
+    expect(resolveCharacterState('downed', 'casting')).toBe('downed');
+    expect(resolveCharacterState('downed', 'channeling')).toBe('downed');
+    expect(resolveCharacterState('downed', 'reviving')).toBe('reviving');
+    expect(resolveCharacterState('downed', 'idle')).toBe('idle');
+  });
+  it('blocks movement and abilities while stunned but allows idle/dead/downed', () => {
+    expect(resolveCharacterState('stunned', 'moving')).toBe('stunned');
+    expect(resolveCharacterState('stunned', 'attacking')).toBe('stunned');
+    expect(resolveCharacterState('stunned', 'casting')).toBe('stunned');
+    expect(resolveCharacterState('stunned', 'channeling')).toBe('stunned');
+    expect(resolveCharacterState('stunned', 'idle')).toBe('idle');
+    expect(resolveCharacterState('stunned', 'downed')).toBe('downed');
+  });
+  it('otherwise defers to whatever state was requested', () => {
+    expect(resolveCharacterState('idle', 'moving')).toBe('moving');
+    expect(resolveCharacterState('attacking', 'idle')).toBe('idle');
+    expect(resolveCharacterState('channeling', 'stunned')).toBe('stunned');
+  });
   it('rejects incomplete placeholder layer metadata', () => {
     expect(() => validateAssetManifest(localAssetManifest)).not.toThrow();
     expect(() => validateAssetManifest(localAssetManifest.slice(0, 3))).toThrow('Missing layer');

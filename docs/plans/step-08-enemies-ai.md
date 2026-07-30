@@ -146,9 +146,15 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
 
 ## Progreso
 
-- [ ] Pendiente: 8.0a daño simétrico.
-- [ ] Pendiente: 8.0b FSM visual de 11 estados.
-- [ ] Pendiente: 8.0c validador de assets generalizado.
+- [x] Completado (2026-07-30): 8.0a daño simétrico. `resolveAttack` en `packages/shared/src/combat.ts`;
+  `resolvePhysicalDamage` delega en él (regresión probada por construcción). 4 tests nuevos.
+- [x] Completado (2026-07-30): 8.0b FSM visual de 11 estados. `domain.ts` reusa
+  `CharacterAnimationState` de `@brecha/shared` en vez de un union propio más angosto;
+  `resolveCharacterState` implementa las reglas de prioridad de GOAL.md 6.1 (`dead` absorbente,
+  `downed` bloquea ataques, `stunned` bloquea movimiento+habilidades). 5 tests nuevos. Todavía sin
+  wiring en `runtime.ts` — no hay ningún productor real de esos estados hasta 8.4/8.6, wirearlo
+  antes sería código muerto.
+- [ ] Pendiente: 8.0c validador de assets generalizado (`assets.ts`, multi-entidad, 64/128px).
 - [ ] Pendiente: 8.0d `SimulationWorld` de paso fijo (mayor riesgo — al final de 8.0).
 - [ ] Pendiente: 8.1 a 8.8.
 
