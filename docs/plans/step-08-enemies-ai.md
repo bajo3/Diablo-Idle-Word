@@ -240,7 +240,15 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       reutilice. 6 tests nuevos — el primer diseño de `telegraphResolvesAt` (basado en "inicio del
       ciclo actual") fallaba en el hueco entre ciclos (ver Resultados); el segundo, con fase modular,
       pasó los 6 tests sin ajustes. 115 tests totales verdes.
-- [ ] Pendiente: 8.6 a 8.8 (el wiring a Phaser de 8.4/8.5 se retoma cuando haya assets de enemigo).
+- [x] Completado (2026-07-30): 8.6 modificadores élite. Nuevo `packages/shared/src/elites.ts`:
+      `ELITE_MODIFIERS` con `Veloz` (×1.5 velocidad) y `Resistente` (×1.75 vida, +10 armadura),
+      `selectEliteModifier` vía el mismo `RandomSource` seedeado que el resto del combate (nunca
+      `Math.random`), `applyEliteModifier` genérico sobre cualquier tuning con
+      `maxHealth`/`armor`/`moveSpeedPxPerSec`. 4 tests nuevos; 119 tests totales verdes. Todavía sin
+      wiring a `game-data`/`runtime.ts` (sin visual/nombre de élite en el HUD todavía) — eso llega
+      junto con el resto del wiring de Phaser pendiente.
+- [ ] Pendiente: 8.7 y 8.8 (el wiring a Phaser de 8.4/8.5/8.6 se retoma cuando haya assets de
+      enemigo).
 
 ## Pruebas
 
