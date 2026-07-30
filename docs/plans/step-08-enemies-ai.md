@@ -231,7 +231,16 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       `unstable_beast` → `close`. 2 tests nuevos; 109 tests totales verdes. Todavía falta el
       wiring a `runtime.ts`/Phaser (instanciar sprites reales, spawnear los 5 tipos) — eso espera a
       tener arte real de enemigo, sigue fuera de alcance de este documento hasta entonces.
-- [ ] Pendiente: 8.5 a 8.8 (el wiring a Phaser de 8.4 se retoma cuando haya assets de enemigo).
+- [x] Completado (2026-07-30): 8.5 proyectiles y telégrafos. Nuevo
+      `packages/shared/src/projectiles.ts`: `Projectile` (posición por `atMs`, expira al alcanzar
+      `maxRangePx`, `projectileHitsTarget` vía `targetWithinRadius`) y `Telegraph` (fase calculada
+      con aritmética modular sobre `repeatMs` — `isTelegraphActive`/`telegraphResolvesAt` distinguen
+      correctamente la ventana de aviso del hueco inactivo entre ciclos; sin `repeatMs` es un
+      telégrafo de un solo disparo). Construido una sola vez para que el jefe del Paso 10 lo
+      reutilice. 6 tests nuevos — el primer diseño de `telegraphResolvesAt` (basado en "inicio del
+      ciclo actual") fallaba en el hueco entre ciclos (ver Resultados); el segundo, con fase modular,
+      pasó los 6 tests sin ajustes. 115 tests totales verdes.
+- [ ] Pendiente: 8.6 a 8.8 (el wiring a Phaser de 8.4/8.5 se retoma cuando haya assets de enemigo).
 
 ## Pruebas
 
@@ -268,6 +277,14 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
   mismo lado (misma dirección de movimiento), sin importar el tick. Se descartó esa rama entera (no
   quedó como código muerto) y se reubicó la lógica en `attack`/`use_ability`, el único estado donde
   "demasiado cerca" es alcanzable de verdad. Los tests se reescribieron para probar exactamente eso.
+- 2026-07-30 (8.5): el primer diseño de `Telegraph` calculaba "el inicio del ciclo actual o
+  anterior" (`currentCycleStart`) y sumaba `telegraphMs`. Antes de escribir los tests se detectó a
+  mano que esto da un `resolvesAt` correcto mientras el ciclo está activo, pero devuelve un valor ya
+  pasado durante el hueco inactivo entre ciclos (`repeatMs - telegraphMs` de duración) — un
+  consumidor real preguntando "¿cuándo resuelve?" durante ese hueco recibiría una respuesta en el
+  pasado. Se reemplazó por aritmética de fase módulo `repeatMs` (`phaseMs`), que distingue
+  explícitamente "activo ahora" de "en hueco, la próxima resolución es la del siguiente ciclo". Los
+  6 tests pasaron sin ajustes con el segundo diseño.
 - 2026-07-30 (8.2 parte 1): la FSM pura (`decideEnemyState`) no necesita `SimulationWorld` para
   existir ni para probarse — es una función de entrada/salida sin reloj ni posición mutable. Se
   implementa y prueba primero; la extracción de `SimulationWorld` queda para cuando el adaptador de
