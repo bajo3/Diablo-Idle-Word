@@ -118,23 +118,87 @@ export function armorMitigation(
   return denominator <= 0 ? 0 : clamp(armor / denominator, 0, tuning.armorReductionCap);
 }
 
+/**
+ * Symmetric attacker-side stats: whoever deals damage (the Guardian today, any enemy from Paso 8
+ * onward) is described the same way, so there is exactly one damage formula in the game.
+ */
+export type AttackerStats = Readonly<{
+  weaponDamage: readonly [number, number];
+  power: number;
+  level: number;
+  criticalChance: number;
+  criticalMultiplier: number;
+}>;
+/** Symmetric defender-side stats: whoever takes damage, including the Guardian himself. */
+export type DefenderStats = Readonly<{
+  armor: number;
+  armorDenominatorBase: number;
+  armorDenominatorPerLevel: number;
+  armorReductionCap: number;
+  /** e.g. Iron Skin's damageTakenMultiplier while active. Omitted or 1 means no reduction. */
+  incomingDamageMultiplier?: number;
+}>;
+
+export function resolveArmorMitigation(defender: DefenderStats, attackerLevel: number): number {
+  const denominator =
+    defender.armor +
+    defender.armorDenominatorBase +
+    defender.armorDenominatorPerLevel * attackerLevel;
+  return denominator <= 0 ? 0 : clamp(defender.armor / denominator, 0, defender.armorReductionCap);
+}
+
+/**
+ * The one damage formula in the game: weapon roll + power, mitigated by the defender's armor,
+ * critical multiplier, then the defender's own incoming-damage multiplier (Iron Skin and future
+ * enemy resistances alike), single rounding at the end. Both `resolvePhysicalDamage` (Guardian
+ * abilities) and enemy attacks (Paso 8) resolve through this same path.
+ */
+export function resolveAttack(
+  attacker: AttackerStats,
+  defender: DefenderStats,
+  abilityMultiplier: number,
+  random: RandomSource,
+): DamageResult {
+  const rolledWeaponDamage = random.nextInt(attacker.weaponDamage[0], attacker.weaponDamage[1]);
+  const base = rolledWeaponDamage + attacker.power;
+  const mitigation = resolveArmorMitigation(defender, attacker.level);
+  const critical = random.next() < attacker.criticalChance;
+  const amount = Math.max(
+    0,
+    Math.round(
+      base *
+        abilityMultiplier *
+        (1 - mitigation) *
+        (critical ? attacker.criticalMultiplier : 1) *
+        (defender.incomingDamageMultiplier ?? 1),
+    ),
+  );
+  return { base, mitigation, critical, amount };
+}
+
 export function resolvePhysicalDamage(
   tuning: GuardianCombatTuning,
   targetArmor: number,
   abilityMultiplier: number,
   random: RandomSource,
 ): DamageResult {
-  const rolledWeaponDamage = random.nextInt(tuning.weaponDamage[0], tuning.weaponDamage[1]);
-  const base = rolledWeaponDamage + tuning.strength;
-  const mitigation = armorMitigation(targetArmor, tuning.level, tuning);
-  const critical = random.next() < criticalChance(tuning);
-  const amount = Math.max(
-    0,
-    Math.round(
-      base * abilityMultiplier * (1 - mitigation) * (critical ? tuning.criticalMultiplier : 1),
-    ),
+  return resolveAttack(
+    {
+      weaponDamage: tuning.weaponDamage,
+      power: tuning.strength,
+      level: tuning.level,
+      criticalChance: criticalChance(tuning),
+      criticalMultiplier: tuning.criticalMultiplier,
+    },
+    {
+      armor: targetArmor,
+      armorDenominatorBase: tuning.armorDenominatorBase,
+      armorDenominatorPerLevel: tuning.armorDenominatorPerLevel,
+      armorReductionCap: tuning.armorReductionCap,
+    },
+    abilityMultiplier,
+    random,
   );
-  return { base, mitigation, critical, amount };
 }
 
 export function tryActivateAbility(

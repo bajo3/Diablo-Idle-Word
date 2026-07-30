@@ -1,0 +1,175 @@
+# Paso 8 — enemigos e IA
+
+## Objetivo del usuario
+
+Que existan enemigos reales (cinco tipos + variantes élite) con comportamiento distinto entre sí,
+capaces de detectar, perseguir, atacar y dañar al Guardián, y de morir y limpiarse correctamente —
+la base sin la cual el Bosque Corrupto (Paso 9) no puede ser una misión jugable de principio a fin.
+
+## Estado actual
+
+El Paso 7 quedó cerrado (`GOAL.md`, fila 2026-07-30 del Registro de progreso): núcleo de combate
+puro y determinista en `@brecha/shared/combat.ts`, `LocalCombatController` con daño saliente y
+entrante reales, RNG seedeado, targets ordenados por distancia, presentación atada al catálogo.
+Existe un hazard estático de prueba (`hazard.corrupted_pulse`) sin detección/navegación/aggro,
+deliberadamente fuera del alcance de IA — eso es este paso.
+
+`apps/web/src/game/domain.ts` sólo define 5 de los 11 estados visuales que
+`packages/shared/src/visual.ts` ya contempla (`idle|moving|attacking|casting|channeling`, faltan
+`interacting|stunned|knocked_back|downed|reviving|dead`). `apps/web/src/game/assets.ts` valida el
+manifiesto de assets con un esquema hard-codeado para exactamente el Guardián (4 capas fijas,
+64×64, ids `guardian_placeholder_<layer>`) — no puede describir un enemigo ni un jefe de 128×128.
+`packages/game-data/src/catalog.ts` define los 5 enemigos sólo como metadata descriptiva
+(`id/displayName/behaviors/aiStates`), sin ningún número de tuning (vida, daño, velocidad,
+radios). No existe ningún sistema de detección, navegación, proyectiles ni telégrafos.
+
+## Alcance
+
+- 8.0: cimientos — daño simétrico (`resolveAttack`), FSM visual generalizada a 11 estados con
+  reglas de prioridad/interrupción, validador de assets generalizado (multi-entidad, 64 o 128px).
+- 8.1: modelo de datos de enemigos en `game-data` (tuning completo, versión de balance nueva).
+- 8.2: máquina de estados de IA pura (`packages/shared/src/enemy-ai.ts`) + detección con línea de
+  visión e histéresis.
+- 8.3: navegación simple (seek/flee/arrive + separación), sin A*.
+- 8.4: los cinco tipos de enemigo como perfiles de comportamiento data-driven.
+- 8.5: proyectiles y telégrafos como entidades de simulación (reutilizables por el jefe del Paso
+  10).
+- 8.6: al menos dos modificadores élite (Veloz, Resistente), seleccionados con el RNG seedeado.
+- 8.7: muerte, limpieza y recompensas pendientes como datos (sin inventario todavía).
+- 8.8: matriz de pruebas, presupuesto de rendimiento (30-40 enemigos a 60 FPS) y cierre en GOAL.
+
+El mundo de simulación de paso fijo (`SimulationWorld`, extraer `combat-controller.ts` de un
+consumidor de `delta` de Phaser a un step determinista) es la pieza de mayor riesgo de 8.0: se
+implementa después de 8.0's dos piezas más seguras (daño simétrico, FSM/assets), migrando primero
+los 12 tests existentes de `combat-controller.test.ts` sin cambiarlos, y sólo agregando enemigos
+una vez que pasen intactos sobre el nuevo world.
+
+## Fuera de alcance
+
+Mapas/Tiled, misión/altares, sistema de interacción, jefe (Paso 9/10 — aunque 8.5 y 8.2 se
+construyen pensando en que el jefe los va a reutilizar). Inventario/loot real, sólo contadores de
+recompensa pendiente. Multiplayer/autoridad remota. Balance final: todo tuning de enemigos queda
+`PROVISIONAL`, igual que `guardian-combat.1`.
+
+## Arquitectura afectada
+
+- `packages/shared/src/combat.ts`: `resolveAttack` simétrico (atacante/defensor genéricos).
+- `packages/shared/src/enemy-ai.ts` (nuevo): FSM pura de IA, sin Phaser ni `Math.random`.
+- `packages/shared/src/steering.ts` (nuevo): navegación simple pura.
+- `packages/shared/src/visual.ts`: ya define los 11 estados; `apps/web/src/game/domain.ts` debe
+  alinearse y agregar las reglas de prioridad/interrupción de GOAL.md §6.1.
+- `apps/web/src/game/assets.ts`: validador generalizado a N entidades × N capas × N estados × 4
+  direcciones, tamaños 64 o 128.
+- `apps/web/src/game/sim/` (nuevo): `world.ts`, `entities.ts`, `projectiles.ts`, `telegraphs.ts` —
+  el adaptador entre el core puro y Phaser.
+- `packages/game-data/src/catalog.ts` + `schemas.ts`: tuning de enemigos, élites, proyectiles.
+
+## Skills requeridas
+
+- `game-architect`: mantener el core puro sin fugas de Phaser/red.
+- `combat-system`: daño simétrico y resolución de impactos reutilizada del Guardián.
+- `enemy-and-dungeon-generator` (si existe) / `game-balance`: tuning de enemigos y curva de TTM.
+- `automated-playtesting`: fuzz de la FSM, replay determinista.
+
+## Archivos relevantes
+
+- `packages/shared/src/combat.ts`, `combat.test.ts`: núcleo, extendido con `resolveAttack`.
+- `packages/shared/src/enemy-ai.ts`, `enemy-ai.test.ts` (nuevos): FSM de IA.
+- `packages/shared/src/steering.ts`, `steering.test.ts` (nuevos): navegación.
+- `apps/web/src/game/domain.ts`, `domain.test.ts`: FSM visual de 11 estados.
+- `apps/web/src/game/assets.ts`: validador generalizado.
+- `apps/web/src/game/combat-controller.ts`: base para `SimulationWorld`.
+- `packages/game-data/src/catalog.ts`, `schemas.ts`, `validation.ts`: tuning de enemigos/élites.
+
+## Modelo de datos
+
+`GAME_DATA_VERSION`/`BALANCE_VERSION` avanzan de `2026.07.30.1` a `2026.07.30.2` cuando se agregue
+tuning de enemigos (Progreso lo registra al ocurrir). Por enemigo: `maxHealth`, `armor`,
+`moveSpeedPxPerSec`, `detectRadiusPx`, `loseTargetRadiusPx` (> detectRadiusPx, histéresis),
+`leashRadiusPx`, `attack{windupMs,impactMs,recoveryMs,rangePx,arcDegrees,damageMultiplier,
+cooldownMs}`, `telegraphMs`, `xpReward`, `animationIds`, `frameSize`.
+
+## Flujo de ejecución
+
+Percepción (posición/distancia/línea de visión) → `decideEnemyIntent` puro → intención (mover /
+atacar / usar habilidad) → resolución determinista de daño vía `resolveAttack` → eventos →
+presentación. Igual forma que el Guardián: el cliente nunca decide daño.
+
+## Consideraciones multiplayer
+
+No aplica todavía — el core sigue siendo local y determinista, preparado (RNG seedeado, reloj
+inyectado, comandos con id) para que el Paso 14 lo eleve a autoridad de servidor sin reescritura.
+
+## Consideraciones de persistencia
+
+No aplica — sin persistencia de combate transitorio en este paso, igual que el Paso 7.
+
+## Consideraciones de rendimiento
+
+Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después de 8.0's
+`SimulationWorld` con un escenario de referencia (N enemigos idle) antes de agregar comportamiento.
+
+## Riesgos
+
+- **Refactor de `SimulationWorld`** (más alto): puede reintroducir bugs de timing como los que el
+  Paso 7 tuvo que corregir dos veces. Mitigación: migrar los 12 tests existentes sin tocarlos antes
+  de agregar una sola línea nueva; sólo entonces sumar enemigos.
+- **Selección de objetivo/aliado no determinista** en la IA del Chamán: mitigar con orden explícito
+  (fracción de vida, tie-break por id) y un test que lo pruebe directamente.
+- **Enemigos atascados en obstáculos**: temporizador de "sin progreso" + waypoint de respawn.
+- **Fuga de memoria por entidades muertas no liberadas**: test de 200 muertes con conteo de pools/
+  listeners/tweens antes y después.
+
+## Decisiones
+
+- 2026-07-30: perfiles de comportamiento data-driven, no subclases por enemigo (GOAL.md prohíbe
+  `if (nombre === ...)`).
+- 2026-07-30: sin A* para el MVP; seek/flee/arrive + separación alcanza para "navegación simple".
+- 2026-07-30: proyectiles y telégrafos se construyen una sola vez en 8.5 para que el jefe del Paso
+  10 los reutilice sin duplicar código.
+
+## Milestones
+
+1. 8.0a — daño simétrico (`resolveAttack`) con pruebas de regresión contra `applyDamageTaken`.
+2. 8.0b — FSM visual de 11 estados con reglas de prioridad/interrupción.
+3. 8.0c — validador de assets generalizado (no específico del Guardián).
+4. 8.0d — `SimulationWorld` de paso fijo; los 12 tests de `combat-controller.test.ts` migran sin
+   cambios y siguen en verde.
+5. 8.1 — tuning de enemigos en `game-data` + validación cruzada.
+6. 8.2 — FSM de IA pura + detección con histéresis.
+7. 8.3 — navegación simple.
+8. 8.4 — los cinco enemigos como perfiles de comportamiento.
+9. 8.5 — proyectiles y telégrafos.
+10. 8.6 — élites.
+11. 8.7 — muerte/limpieza/recompensas pendientes.
+12. 8.8 — matriz completa, perf, smoke real, cierre en GOAL.
+
+## Progreso
+
+- [ ] Pendiente: 8.0a daño simétrico.
+- [ ] Pendiente: 8.0b FSM visual de 11 estados.
+- [ ] Pendiente: 8.0c validador de assets generalizado.
+- [ ] Pendiente: 8.0d `SimulationWorld` de paso fijo (mayor riesgo — al final de 8.0).
+- [ ] Pendiente: 8.1 a 8.8.
+
+## Pruebas
+
+- `pnpm test` debe seguir en 77+ tests verdes en todo momento; cada milestone agrega los suyos.
+- 8.0a: `resolveAttack` produce los mismos números que `resolvePhysicalDamage`/`applyDamageTaken`
+  ya probados (regresión, no una fórmula nueva).
+- 8.0d: dos ejecuciones del mismo seed + misma secuencia de comandos producen streams de eventos
+  idénticos, tanto a 60 Hz continuos como con un salto de reloj simulando un stall de 2 segundos.
+
+## Criterios de aceptación
+
+Ningún criterio de Paso 7 se rompe (77 tests + smoke siguen verdes). Cada milestone de este
+documento queda marcado `[x]` sólo con test o verificación manual nombrada, nunca por intención.
+
+## Resultados
+
+(se completa durante la implementación)
+
+## Trabajo pendiente
+
+Al cerrar 8.0 sin haber completado 8.1-8.8 en la misma sesión, este documento queda como fuente de
+verdad para continuar sin releer todo el historial de la sesión que lo escribió.

@@ -7,6 +7,7 @@ import {
   armorMitigation,
   createGuardianCombatState,
   criticalChance,
+  resolveAttack,
   resolvePhysicalDamage,
   targetWithinArc,
   targetWithinRadius,
@@ -102,6 +103,66 @@ describe('Guardian combat pure rules', () => {
     expect(armorMitigation(0, 1, tuning)).toBe(0);
     expect(armorMitigation(1_000_000, 1, tuning)).toBe(0.75);
     expect(resolvePhysicalDamage(tuning, 1_000_000, 0, minimumRng).amount).toBe(0);
+  });
+  it('resolves symmetric attacks identically to the Guardian-specific formula (regression lock)', () => {
+    const attacker = {
+      weaponDamage: tuning.weaponDamage,
+      power: tuning.strength,
+      level: tuning.level,
+      criticalChance: criticalChance(tuning),
+      criticalMultiplier: tuning.criticalMultiplier,
+    };
+    const defender = {
+      armor: 100,
+      armorDenominatorBase: tuning.armorDenominatorBase,
+      armorDenominatorPerLevel: tuning.armorDenominatorPerLevel,
+      armorReductionCap: tuning.armorReductionCap,
+    };
+    expect(resolveAttack(attacker, defender, 1, minimumRng)).toEqual(
+      resolvePhysicalDamage(tuning, 100, 1, minimumRng),
+    );
+    expect(resolveAttack(attacker, defender, 2.25, { nextInt: () => 14, next: () => 0 })).toEqual(
+      resolvePhysicalDamage(tuning, 100, 2.25, { nextInt: () => 14, next: () => 0 }),
+    );
+  });
+  it('resolves an attack from a non-Guardian attacker profile (an enemy shape)', () => {
+    const enemyAttacker = {
+      weaponDamage: [4, 8] as const,
+      power: 2,
+      level: 1,
+      criticalChance: 0,
+      criticalMultiplier: 1,
+    };
+    const guardianDefender = {
+      armor: 25,
+      armorDenominatorBase: 75,
+      armorDenominatorPerLevel: 0,
+      armorReductionCap: 1,
+    };
+    const result = resolveAttack(enemyAttacker, guardianDefender, 1, {
+      nextInt: () => 6,
+      next: () => 1,
+    });
+    expect(result).toEqual({ base: 8, mitigation: 0.25, critical: false, amount: 6 });
+  });
+  it("applies the defender's incoming-damage multiplier (Iron Skin's shape) after mitigation", () => {
+    const attacker = {
+      weaponDamage: [10, 10] as const,
+      power: 0,
+      level: 1,
+      criticalChance: 0,
+      criticalMultiplier: 1,
+    };
+    const unshielded = {
+      armor: 0,
+      armorDenominatorBase: 100,
+      armorDenominatorPerLevel: 0,
+      armorReductionCap: 1,
+    };
+    const shielded = { ...unshielded, incomingDamageMultiplier: 0.55 };
+    const rng = { nextInt: () => 10, next: () => 1 };
+    expect(resolveAttack(attacker, unshielded, 1, rng).amount).toBe(10);
+    expect(resolveAttack(attacker, shielded, 1, rng).amount).toBe(6);
   });
   it('reserves resource and cooldown only for accepted activations', () => {
     const initial = createGuardianCombatState(tuning);
