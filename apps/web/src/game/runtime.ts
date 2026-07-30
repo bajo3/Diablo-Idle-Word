@@ -5,8 +5,10 @@ import { createSeededRandom, seedFromString } from '@brecha/shared';
 
 import {
   constrainKnockbackSweep,
+  guardianCombatTuning,
   LocalCombatController,
   type CombatEvent,
+  type DummyTarget,
 } from './combat-controller';
 import {
   guardianCombatPresentation,
@@ -14,6 +16,7 @@ import {
 } from './combat-presentation';
 import { localAssetManifest, validateAssetManifest, validateLoadedFrameCount } from './assets';
 import { motionFromInput, type Direction4, type LocalCharacterState } from './domain';
+import { ENEMY_VISUALS, type EnemyVisualId } from './enemy-visuals';
 import { arcadeDebugEnabled, arcadeDebugOptIn } from './presentation';
 import {
   addAmbientSpores,
@@ -67,6 +70,7 @@ export type GameRuntime = Readonly<{
   destroy(): void;
   setConnection(connection: RuntimeConnection): void;
   setDamageNumbers?(enabled: boolean): void;
+  setAutoBattle?(enabled: boolean): void;
 }>;
 
 class BootScene extends Phaser.Scene {
@@ -230,7 +234,8 @@ class TestScene extends Phaser.Scene {
    * real browser (not a mocked/short-circuited test double) actually boots this scene.
    */
   private controller!: LocalCombatController;
-  private readonly dummyVisuals = new Map<string, Phaser.GameObjects.Arc>();
+  private readonly dummyVisuals = new Map<string, Phaser.GameObjects.Sprite>();
+  private readonly dummyShadows = new Map<string, Phaser.GameObjects.Ellipse>();
   private hazardPulseAt = HAZARD.periodMs;
   private hazardIndicator!: Phaser.GameObjects.Arc;
   /** Fills from the centre outwards as the telegraph runs, so "how long until this hurts" is
@@ -239,6 +244,9 @@ class TestScene extends Phaser.Scene {
   private feedback!: FeedbackPool;
   private audio = new CombatAudio();
   private showDamageNumbers = true;
+  /** Vision pivot (GOAL.md §0.1): combat is semi-automatic by default, manual input is the
+   * intervention layer for content that demands it. This flag is that layer's on/off switch. */
+  private autoBattle = false;
   private lastHudAt = -Infinity;
   private readonly suppressContextMenu = (event: Event) => event.preventDefault();
   public constructor(private readonly onHud: (snapshot: GameHudSnapshot) => void) {
@@ -271,9 +279,9 @@ class TestScene extends Phaser.Scene {
       .setOffset(33, 61)
       .setDepth(this.player.y);
     this.physics.add.collider(this.player, walls);
-    this.addDummy('dummy:one', 360, 180, 0);
-    this.addDummy('dummy:two', 400, 260, 25);
-    this.addDummy('dummy:three', 300, 330, 60);
+    this.addDummy('dummy:one', 360, 180, 0, 'corrupted_minion');
+    this.addDummy('dummy:two', 400, 260, 25, 'possessed_archer');
+    this.addDummy('dummy:three', 300, 330, 60, 'root_brute');
     this.hazardFill = this.add
       .circle(HAZARD_POSITION.x, HAZARD_POSITION.y, HAZARD.radiusPx, 0x8a3ffc, 0.22)
       .setDepth(3)
@@ -304,13 +312,27 @@ class TestScene extends Phaser.Scene {
   public override update(): void {
     if (this.paused) return;
     const now = this.combatNow();
-    const motion = motionFromInput(
-      (this.wasd.D.isDown ? 1 : 0) - (this.wasd.A.isDown ? 1 : 0),
-      (this.wasd.S.isDown ? 1 : 0) - (this.wasd.W.isDown ? 1 : 0),
-      this.facing,
-    );
-    this.facing = motion.direction;
     const snapshot = this.controller.snapshot();
+    let rawX = (this.wasd.D.isDown ? 1 : 0) - (this.wasd.A.isDown ? 1 : 0);
+    let rawY = (this.wasd.S.isDown ? 1 : 0) - (this.wasd.W.isDown ? 1 : 0);
+    if (this.autoBattle) {
+      const target = this.nearestAliveDummy();
+      if (target === undefined) {
+        rawX = 0;
+        rawY = 0;
+      } else {
+        const dx = target.position.x - this.player.x;
+        const dy = target.position.y - this.player.y;
+        this.facing = motionFromInput(dx, dy, this.facing).direction;
+        const rangePx = guardianCombatTuning.abilities.slash.rangePx ?? 78;
+        const inRange = Math.hypot(dx, dy) <= rangePx;
+        rawX = inRange ? 0 : dx;
+        rawY = inRange ? 0 : dy;
+        if (inRange && snapshot.cooldownRemainingMs.slash <= 0) this.activate('slash');
+      }
+    }
+    const motion = motionFromInput(rawX, rawY, this.facing);
+    this.facing = motion.direction;
     const locked =
       now < this.actionEndsAt && (this.state === 'attacking' || this.state === 'casting');
     this.state = now < this.actionEndsAt ? this.state : motion.state;
@@ -347,20 +369,33 @@ class TestScene extends Phaser.Scene {
   public setDamageNumbers(enabled: boolean): void {
     this.showDamageNumbers = enabled;
   }
-  private addDummy(id: string, x: number, y: number, armor: number): void {
+  public setAutoBattle(enabled: boolean): void {
+    this.autoBattle = enabled;
+  }
+  /** Closest still-alive target — the only targeting rule the auto-battle intervention layer
+   * needs while the local scene has no aggro/threat system of its own. */
+  private nearestAliveDummy(): DummyTarget | undefined {
+    const alive = this.controller.getTargets().filter((target) => target.health > 0);
+    return alive.reduce<DummyTarget | undefined>((closest, target) => {
+      if (closest === undefined) return target;
+      const closer =
+        squaredDistance(this.player, target.position) <
+        squaredDistance(this.player, closest.position);
+      return closer ? target : closest;
+    }, undefined);
+  }
+  private addDummy(id: string, x: number, y: number, armor: number, visual: EnemyVisualId): void {
     this.controller.addDummy({ id, position: { x, y }, armor, health: 220, maxHealth: 220 });
-    // A corrupted training totem rather than a flat ring: shadow, weathered stone body, a lit top
-    // face and a dim corruption core, so a target reads as an object standing on the ground.
-    this.add.ellipse(x, y + 12, 38, 13, 0x000000, 0.38).setDepth(y - 2);
-    this.add.rectangle(x, y + 4, 26, 30, 0x2a2622).setDepth(y - 1);
-    this.add.ellipse(x, y - 10, 30, 15, 0x3a352e).setDepth(y - 1);
-    this.dummyVisuals.set(
-      id,
-      this.add
-        .circle(x, y - 10, 8, 0x6b3f8a)
-        .setStrokeStyle(2, 0x8a3ffc, 0.85)
-        .setDepth(y),
-    );
+    // Reuses the Guardian's own generated frames, tinted per enemy type (see enemy-visuals.ts) -
+    // no new PixelLab generation spent on five distinct silhouettes.
+    this.dummyShadows.set(id, this.add.ellipse(x, y + 2, 34, 12, 0x000000, 0.4).setDepth(y - 1));
+    const sprite = this.add
+      .sprite(x, y, pixelLabKey(this.character, 'idle', 'south'))
+      .setOrigin(this.character.origin.x, this.character.origin.y)
+      .setTint(ENEMY_VISUALS[visual].tint)
+      .setDepth(y);
+    sprite.play(pixelLabKey(this.character, 'idle', 'south'));
+    this.dummyVisuals.set(id, sprite);
   }
   /** Telegraphs, then resolves, one static periodic pulse — data-driven, no detection/nav/aggro. */
   private updateHazard(now: number): void {
@@ -447,8 +482,10 @@ class TestScene extends Phaser.Scene {
         );
         this.audio.play(event.critical ? 'critical' : 'hit', event.executionId);
       }
-      if (event.type === 'targetDefeated')
-        this.dummyVisuals.get(event.targetId)?.setFillStyle(0x3b3b3b).setAlpha(0.45);
+      if (event.type === 'targetDefeated') {
+        this.dummyVisuals.get(event.targetId)?.setTint(0x3b3b3b).setAlpha(0.5);
+        this.dummyShadows.get(event.targetId)?.setAlpha(0.15);
+      }
       if (event.type === 'selfDamaged') {
         this.feedback.impact(
           this.player.x,
@@ -464,6 +501,10 @@ class TestScene extends Phaser.Scene {
     for (const target of this.controller.getTargets()) {
       const visual = this.dummyVisuals.get(target.id);
       visual?.setPosition(target.position.x, target.position.y).setDepth(target.position.y);
+      this.dummyShadows
+        .get(target.id)
+        ?.setPosition(target.position.x, target.position.y + 2)
+        .setDepth(target.position.y - 1);
     }
   }
   private syncLayers(): void {
@@ -522,9 +563,19 @@ class TestScene extends Phaser.Scene {
     this.audio.destroy();
     this.dummyVisuals.forEach((visual) => visual.destroy());
     this.dummyVisuals.clear();
+    this.dummyShadows.forEach((shadow) => shadow.destroy());
+    this.dummyShadows.clear();
   }
 }
 
+function squaredDistance(
+  from: Readonly<{ x: number; y: number }>,
+  to: Readonly<{ x: number; y: number }>,
+): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  return dx * dx + dy * dy;
+}
 function directionVector(direction: Direction4): Readonly<{ x: number; y: number }> {
   return {
     up: { x: 0, y: -1 },
@@ -601,6 +652,7 @@ export function mountGameRuntime(
     resume: () => scene.resume(),
     setConnection: (connection) => scene.setConnection(connection),
     setDamageNumbers: (enabled) => scene.setDamageNumbers(enabled),
+    setAutoBattle: (enabled) => scene.setAutoBattle(enabled),
     destroy: () => {
       if (!destroyed) {
         destroyed = true;

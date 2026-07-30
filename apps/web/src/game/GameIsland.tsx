@@ -47,6 +47,7 @@ export function GameIsland({
   const runtime = useRef<GameRuntime | undefined>(undefined);
   const connectionRef = useRef(connection);
   const damageNumbersRef = useRef(true);
+  const autoBattleRef = useRef(false);
   const manuallyPaused = useRef(false);
   const pausedByVisibility = useRef(false);
   const checkpointIntent = useRef<
@@ -63,9 +64,11 @@ export function GameIsland({
   const [checkpointPending, setCheckpointPending] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string>();
   const [showDamageNumbers, setShowDamageNumbers] = useState(true);
+  const [autoBattle, setAutoBattle] = useState(false);
   const [hud, setHud] = useState<GameHudSnapshot>(() => initialHud(connection));
   connectionRef.current = connection;
   damageNumbersRef.current = showDamageNumbers;
+  autoBattleRef.current = autoBattle;
   useEffect(() => {
     let active = true;
     void loadRuntime().then(({ mountGameRuntime }) => {
@@ -74,6 +77,7 @@ export function GameIsland({
         runtime.current = mounted;
         mounted.setConnection(connectionRef.current);
         mounted.setDamageNumbers?.(damageNumbersRef.current);
+        mounted.setAutoBattle?.(autoBattleRef.current);
       }
     });
     return () => {
@@ -84,6 +88,7 @@ export function GameIsland({
   }, [loadRuntime]);
   useEffect(() => runtime.current?.setConnection(connection), [connection]);
   useEffect(() => runtime.current?.setDamageNumbers?.(showDamageNumbers), [showDamageNumbers]);
+  useEffect(() => runtime.current?.setAutoBattle?.(autoBattle), [autoBattle]);
   useEffect(() => {
     const onVisibilityChange = () => {
       const current = runtime.current;
@@ -161,6 +166,14 @@ export function GameIsland({
         Atacá con clic izquierdo, Golpe poderoso con clic derecho, Torbellino con Q y Piel de hierro
         con E.
       </p>
+      <label className="combat-toggle">
+        <input
+          checked={autoBattle}
+          onChange={(event) => setAutoBattle(event.target.checked)}
+          type="checkbox"
+        />
+        Combate automático (modo idle) — el Guardián busca y ataca solo
+      </label>
       <label className="combat-toggle">
         <input
           checked={showDamageNumbers}

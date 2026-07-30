@@ -62,6 +62,40 @@ No sacrificar la arquitectura central para crear efectos visuales prematuramente
 
 ---
 
+## 0.1 Pivote de visión (2026-07-30)
+
+La visión original (ARPG cooperativo en tiempo real, sala privada por sesión, 1-4 jugadores) se
+reemplaza por: **juego online persistente con sistema de party** (roles que importan
+mecánicamente) y **combate semi-automático** (idle por defecto, intervención manual del jugador
+para telegrafiar/reaccionar en jefes de raid y misiones difíciles). La resolución de acciones en
+grupo es asíncrona por tick de servidor, no sincronizada en tiempo real.
+
+**Por qué**: el motivo explícito del usuario fue evitar el costo más caro de un ARPG online — el
+netcode de autoridad de servidor a 20-60 Hz con predicción y reconciliación de cliente — sin perder
+la sensación de que la party importa. Con resolución por comandos asíncronos y tick de servidor
+(precedente real: el combate por ticks de Old School RuneScape), ese costo desaparece casi por
+completo, y el contenido regular puede resolverse como un idle/incremental clásico.
+
+**Qué sobrevive intacto**: todo el núcleo puro de combate/IA construido en los Pasos 7 y 8
+(`packages/shared/src/combat.ts`, `enemy-ai.ts`, `enemy-simulation.ts`, `steering.ts`,
+`projectiles.ts`, `elites.ts`) — reloj inyectado, RNG seedeado, comandos con id, telégrafos
+aviso→resolución. Fue construido con exactamente esta forma en mente ("preparado para que un paso
+posterior lo eleve a autoridad de servidor sin reescritura"), y es la pieza que un jefe de raid con
+resolución por tick necesita: percepción → decisión → intención → resolución determinista → evento.
+Nada de esto se descarta.
+
+**Qué cambia**: el Paso 14 (antes "Multiplayer de combate" en tiempo real dentro de una sala de
+sesión) pasa a ser un loop de tick de servidor que resuelve comandos en cola, no un sistema de
+snapshots/interpolación/predicción de movimiento en vivo. El Paso 13 (lobby) se generaliza de "sala
+por código" a sistema de party sobre un mundo persistente. La sección "14. Multiplayer" más abajo ya
+quedó actualizada con esto.
+
+**Qué no cambió**: el modo ausente (Sección 7), el sistema de objetos (Sección 10), el jefe inicial
+(Sección 13) y el resto de la arquitectura de datos siguen siendo válidos tal cual — este pivote es
+sobre el modelo de sincronización multiplayer y el modo de combate, no sobre el contenido del juego.
+
+---
+
 # 1. Visión del producto
 
 ## Nombre provisional
@@ -72,13 +106,36 @@ El nombre es provisional y debe poder cambiarse desde una configuración central
 
 ## Definición
 
-Juego web 2D híbrido de acción RPG, progresión persistente, botín y cooperación online para entre 1 y 4 jugadores.
+**(2026-07-30 — pivote de visión, reemplaza la definición anterior de ARPG cooperativo en tiempo real.
+Ver "0. Pivote de visión" para el porqué y la fila de Decisiones registrando el cambio.)**
 
-El juego combina dos formas de progreso sobre el mismo personaje online:
+Juego web 2D de rol con progresión persistente, botín, y un sistema de **party** online (grupo con
+roles que importan mecánicamente — tanque, arquero, etc. — para zonas difíciles y jefes de raid).
+El personaje vive siempre en el servidor: no hay una versión "offline" separada, hay un espectro
+entre jugar activamente y dejar que el personaje progrese solo.
 
-### Modo activo
+El juego combina dos formas de jugar sobre el mismo personaje online:
 
-El jugador controla manualmente a su personaje, explora una zona, combate enemigos, usa habilidades, completa objetivos, consigue equipamiento y derrota jefes.
+### Modo activo (semi-automático)
+
+El personaje combate de forma automática por defecto — se mueve, ataca y usa habilidades básicas
+sin que el jugador tenga que apretar nada, como un idle/incremental. El jugador puede intervenir en
+cualquier momento activando habilidades manualmente, y **eso es lo que hace falta** en contenido
+exigente: un jefe de raid o una misión difícil telegrafía ataques peligrosos, y sin intervención
+manual del jugador (y de su party) el grupo no sobrevive. Fuera de ese contenido, mirar sin tocar
+nada es una forma válida de jugar.
+
+### Party (grupo)
+
+De 1 a 4 jugadores pueden agruparse. El rol de cada personaje (clase, atributos, habilidades)
+importa mecánicamente para la composición — un tanque aguanta y genera amenaza, un arquero pega de
+lejos — no es un bonus cosmético. La resolución de acciones en grupo es **asíncrona por tick**: cada
+jugador manda su intención (activar una habilidad, moverse) cuando puede, y el servidor la resuelve
+en su propio tick de simulación. Ningún jugador necesita estar mirando la pantalla en el mismo
+milisegundo que el resto de su party — el modelo de referencia es el combate por ticks de Old School
+RuneScape, no un shooter de acción en tiempo real. Esto es una decisión técnica deliberada: evita el
+problema más caro de un ARPG online (autoridad de servidor a 20-60 Hz con predicción/reconciliación)
+sin sacrificar que la party se sienta real.
 
 ### Modo offline o modo ausente
 
@@ -152,19 +209,22 @@ El modo ausente sirve para complementar el progreso, no para reemplazar el juego
 
 El contenido principal, los jefes, la historia, las habilidades importantes y el mejor botín requieren jugar activamente.
 
-## 2.4 Cooperación sencilla
+## 2.4 Party sencilla, roles que importan
 
-El multiplayer debe permitir jugar con amigos sin sistemas sociales complejos.
+El sistema de party debe permitir jugar con amigos sin sistemas sociales complejos, pero el rol de
+cada clase dentro del grupo tiene que ser una decisión mecánica real, no cosmética.
 
 Para el MVP:
 
-- Crear sala.
-- Obtener código.
-- Unirse por código.
+- Invitar/unirse a una party (código o invitación directa).
 - Hasta 4 jugadores.
+- El rol de clase (tanque, arquero, etc.) afecta atributos y habilidades disponibles, no solo el
+  aspecto visual.
 - Botín individual.
 - Reanimación de compañeros.
 - Dificultad escalada.
+- Contenido difícil (jefes de raid, misiones exigentes) requiere intervención manual coordinada de
+  la party; el resto del contenido puede resolverse en modo semi-automático.
 
 ## 2.5 Progreso ausente basado en rendimiento real
 
@@ -1321,75 +1381,63 @@ Se activa al llegar a un porcentaje configurable de vida.
 
 # 14. Multiplayer
 
+**(2026-07-30 — sección reescrita por el pivote de visión de la 0.1: de "sala de sesión en tiempo
+real" a "party sobre resolución por tick asíncrono". El escalado por jugadores y el botín individual
+de más abajo no cambiaron.)**
+
 ## Alcance
 
-- 1 a 4 jugadores.
-- Cooperativo.
-- Sala privada con código.
+- 1 a 4 jugadores por party.
+- El rol de clase importa mecánicamente en la composición (tanque/arquero/etc.), no solo
+  cosméticamente.
 - Sin matchmaking público en el MVP.
 - Sin chat global.
 
 ## Flujo
 
-1. El jugador entra al pueblo.
-2. Selecciona “Jugar”.
-3. Crea una sala o introduce un código.
-4. El servidor crea o recupera la sala.
-5. Los jugadores aparecen en el lobby.
-6. El anfitrión selecciona misión y dificultad.
-7. Todos marcan “Listo”.
-8. El anfitrión inicia.
-9. El servidor crea la instancia de expedición.
-10. Los jugadores ingresan.
-11. Al terminar, todos ven resultados individuales y grupales.
+1. El jugador forma o se une a una party (código o invitación directa).
+2. La party entra junta a una zona o misión.
+3. Cada jugador manda sus intenciones (moverse, activar habilidad) cuando puede — no hace falta que
+   todos estén conectados en el mismo instante para que el servidor siga resolviendo la simulación.
+4. El servidor resuelve cada intención en su propio tick, contra el estado autoritativo de esa
+   instancia.
+5. Al terminar, todos ven resultados individuales y grupales.
 
 ## Servidor autoritativo
 
 El servidor controla o valida:
 
-- Estado de la sala.
-- Estado de la partida.
-- Posiciones.
-- Velocidades.
-- Colisiones críticas.
-- Vida.
-- Daño.
-- Cooldowns.
-- Recursos.
-- Botín.
-- Eliminaciones.
-- Reanimaciones.
-- Objetivos.
-- Resultado.
-- Recompensas.
+- Estado de la party y de la instancia.
+- Vida, daño, cooldowns, recursos (vía el núcleo determinista de `packages/shared`).
+- Botín, eliminaciones, reanimaciones, objetivos, resultado, recompensas.
 
-El cliente envía intenciones:
+El cliente envía intenciones con id (`executionId`), igual que el modo activo local: activación de
+habilidad, movimiento, interacción, reanimación. El servidor las valida contra su propio tick, no
+contra el reloj del cliente.
 
-- Movimiento.
-- Apuntado.
-- Ataque.
-- Activación de habilidad.
-- Interacción.
-- Reanimación.
+## Sincronización — resolución por tick, no tiempo real
 
-## Sincronización
-
-- Tick del servidor configurable.
-- Snapshots.
-- Interpolación para entidades remotas.
-- Predicción local limitada para movimiento.
-- Reconciliación cuando sea necesario.
+- Tick del servidor configurable (el punto de partida es varias veces por segundo, no 20-60 Hz;
+  se ajusta en balance, no es una decisión de esta sección).
+- Cada comando de un jugador se aplica en el tick en que el servidor lo recibe, contra el estado de
+  ese tick — no hace falta que dos jugadores actúen en el mismo instante para que ambos comandos se
+  resuelvan correctamente uno tras otro.
+- Sin predicción de movimiento en tiempo real ni interpolación cliente-a-cliente: cada cliente
+  muestra el último estado que el servidor confirmó. Esto es aceptable porque el modelo de
+  referencia es un combate por ticks (tipo Old School RuneScape), no un juego de acción con
+  reflejos de milisegundo.
 - No enviar el estado completo si no cambió.
-- Separar estado persistente del estado de partida.
+- Separar estado persistente del estado de la instancia activa.
 
 ## Desconexiones
 
-- Tolerar desconexión breve.
+- Tolerar desconexión breve — al ser resolución por tick asíncrona, un jugador desconectado no
+  bloquea el tick de los demás.
 - Mantener un período de reconexión configurable.
 - Si no reconecta, eliminar o convertir el personaje en estado seguro.
-- Transferir anfitrión en el lobby.
-- Durante la partida, la sala no depende del anfitrión.
-- Limpiar salas vacías.
+- Transferir anfitrión en el lobby de party.
+- Durante la instancia, la party no depende del anfitrión.
+- Limpiar instancias vacías.
 
 ## Escalado por cantidad de jugadores
 
@@ -2862,6 +2910,11 @@ Estado: [ ]
 
 Estado: [ ]
 
+**Nota (2026-07-30, ver sección 0.1 y 14):** "sala"/"lobby" se generaliza a sistema de party sobre
+un mundo persistente — la lista de tareas de abajo sigue siendo válida en espíritu (formar grupo,
+código/invitación, listar jugadores, transferir anfitrión) pero no se ha reescrito tarea por tarea
+todavía porque este paso no empezó. Revisar contra la sección 14 antes de iniciar este paso.
+
 ## Tareas
 
 - [ ] Configurar servidor multiplayer.
@@ -2891,6 +2944,12 @@ Estado: [ ]
 # Paso 14 — Multiplayer de combate
 
 Estado: [ ]
+
+**Nota (2026-07-30, ver sección 0.1 y 14):** este paso pasa de "sincronización en tiempo real
+(interpolación, predicción, reconciliación)" a "loop de tick de servidor que resuelve comandos en
+cola de forma asíncrona" — más simple, no más complejo. Las tareas de interpolación/predicción de
+abajo quedan obsoletas y se reemplazan cuando se inicie este paso; no reescritas todavía porque no
+empezó.
 
 ## Tareas
 
@@ -3340,6 +3399,7 @@ También debe actualizar el registro siguiente.
 | 2026-07-29 | 6 | Completado | Isla Phaser desacoplada con escenas Boot/Test, movimiento y colisiones Arcade, FSM y capas animadas validadas, ciclo de vida seguro y checkpoint autoritativo idempotente | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 41 pruebas unitarias/UI, 13 integraciones PostgreSQL/HTTP, build, 6 migraciones, seed doble, backup/restore SHA-256 y smoke real de canvas/remontaje | Paso 7: implementar combate del Guardián |
 | 2026-07-30 | 7 | Completado | Combate del Guardián cerrado tras auditoría independiente: RNG determinista seedeado y orden de blancos por distancia (antes dependían de orden de inserción del Map), daño entrante real vía `applyIncomingDamage` (Piel de hierro y Sed de batalla eran inertes en el juego pese a tests unitarios verdes), presentación visual atada a `GAME_DATA.animations` sin literales mágicos, y dos bugs reales que impedían todo uso en navegador real: `fetch` nativo invocado con receptor incorrecto (Illegal invocation en todo navegador) y `LocalCombatController` construido como campo de clase antes de que `this.time` de Phaser existiera. Verificado en vivo: registro, Guardián, canvas renderizando personaje/capas/dummies/hazard, ataque activando cooldown | Instalación congelada, Prisma generate/validate, formato, lint, typecheck, 77 pruebas unitarias/UI, 13 integraciones PostgreSQL/HTTP, build, smoke real de navegador con sesión completa (registro→Guardián→partida→canvas visible) | Paso 8: sistema base de enemigos |
 | 2026-07-30 | 8 | En curso | Núcleo puro de IA de enemigos completo y probado en `packages/shared`/`packages/game-data`: tuning real de los 5 enemigos (8.1), FSM de 9 estados con detección por histéresis (8.2), `SimulationWorld` de paso fijo componiendo FSM+steering (8.2 parte 2, fusionado desde 8.0d una vez hubo consumidores reales), navegación seek/flee/arrive/separación sin A* (8.3), diferenciación de movimiento melee/ranged mapeada a los 5 enemigos por sus `behaviors` (8.4), proyectiles y telégrafos reutilizables por el jefe (8.5), dos modificadores élite con RNG seedeado (8.6), y limpieza/recompensas de muerte con XP deduplicada (8.7). Deliberadamente sin cerrar: nada de esto está todavía instanciado en `runtime.ts` ni es visible/jugable en el navegador — bloqueado en tener assets de sprite reales para los 5 enemigos (ninguno generado esta sesión), y en construir el adaptador `apps/web/src/game/sim/` que los conecte a Phaser. Los criterios de aceptación de comportamientos específicos por enemigo (Chamán prioriza aliados, Bestia telegrafía su explosión) tampoco están implementados, sólo sus primitivos genéricos | Instalación congelada, formato, lint, typecheck, 122 pruebas unitarias nuevas sobre el núcleo puro (enemy-ai, steering, enemy-simulation, behavior-profile, projectiles, elites, enemy-lifecycle) — sin smoke de navegador todavía, no hay nada visual que probar | Punto de decisión pendiente del usuario (no asumir): (a) profundizar comportamiento por enemigo (Chamán/Bestia/Bruto) sobre el núcleo puro ya probado, sin tocar sprites; (b) generar sprites de los 5 enemigos vía PixelLab para desbloquear el adaptador de Phaser; o (c) avanzar al Paso 9 (mapa/misión) dejando el Paso 8 documentado como está — ver `docs/plans/step-08-enemies-ai.md`, sección Trabajo pendiente |
+| 2026-07-30 | 0 (visión) | Completado | Pivote de visión decidido por el usuario tras discutir alternativas (ver sección 0.1): de "ARPG cooperativo en tiempo real, sala por sesión" a "juego online persistente con sistema de party (roles mecánicos: tanque/arquero/etc.) y combate semi-automático (idle por defecto, intervención manual del jugador en jefes de raid/misiones difíciles)". La resolución de acciones en grupo pasa a ser asíncrona por tick de servidor (referencia: combate por ticks de Old School RuneScape), no sincronizada en tiempo real — se evita así el netcode de autoridad de servidor a 20-60 Hz con predicción/reconciliación, que era el costo más caro de la visión anterior. Reescritas la Definición (Sección 1), 2.4 y la Sección 14 completa; notas de pivote agregadas a los Pasos 13 y 14 del plan maestro (no reescritos tarea por tarea porque no empezaron). El núcleo puro de combate/IA de los Pasos 7-8 no se toca — fue construido con esta forma en mente y sigue siendo la pieza correcta | No aplica (cambio documental) | Presentar el modo semi-automático (idle) funcionando en el navegador usando los personajes ya generados, con los enemigos recoloreados en vez de tótems |
 
 ---
 
