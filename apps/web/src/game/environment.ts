@@ -38,6 +38,7 @@ const PALETTE = Object.freeze({
 
 const GROUND_TEXTURE_KEY = 'env:corrupted-forest-ground';
 const VIGNETTE_TEXTURE_KEY = 'env:vignette';
+const SPORE_TEXTURE_KEY = 'env:spore';
 
 /**
  * Paints soil, patches, pebbles, grass tufts and corruption veins into one baked texture and
@@ -199,6 +200,38 @@ export function plantCorruptedTree(
       ),
     );
   return scene.add.container(x, y, parts).setDepth(y);
+}
+
+/**
+ * Slow drifting spores across the whole world. Purely atmospheric: they never collide, never
+ * damage and never gate anything, so an emitter is safe to leave running for the whole scene.
+ */
+export function addAmbientSpores(
+  scene: Phaser.Scene,
+  width: number,
+  height: number,
+): Phaser.GameObjects.Particles.ParticleEmitter {
+  if (!scene.textures.exists(SPORE_TEXTURE_KEY)) {
+    const dot = scene.add.graphics();
+    dot.fillStyle(0xffffff, 1).fillCircle(3, 3, 3);
+    dot.generateTexture(SPORE_TEXTURE_KEY, 6, 6);
+    dot.destroy();
+  }
+  return scene.add
+    .particles(0, 0, SPORE_TEXTURE_KEY, {
+      x: { min: 0, max: width },
+      y: { min: 0, max: height },
+      lifespan: { min: 5000, max: 11000 },
+      speedX: { min: -9, max: 9 },
+      speedY: { min: -16, max: -3 },
+      scale: { min: 0.2, max: 0.6 },
+      alpha: { start: 0.5, end: 0 },
+      frequency: 240,
+      quantity: 1,
+      tint: [0x9c86c4, 0x6b8f5a, 0x8a3ffc],
+      blendMode: 'ADD',
+    })
+    .setDepth(80);
 }
 
 /**

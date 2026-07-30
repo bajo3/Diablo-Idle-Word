@@ -16,6 +16,7 @@ import { localAssetManifest, validateAssetManifest, validateLoadedFrameCount } f
 import { motionFromInput, type Direction4, type LocalCharacterState } from './domain';
 import { arcadeDebugEnabled, arcadeDebugOptIn } from './presentation';
 import {
+  addAmbientSpores,
   addVignette,
   borderBandPoints,
   paintCorruptedForestGround,
@@ -232,6 +233,9 @@ class TestScene extends Phaser.Scene {
   private readonly dummyVisuals = new Map<string, Phaser.GameObjects.Arc>();
   private hazardPulseAt = HAZARD.periodMs;
   private hazardIndicator!: Phaser.GameObjects.Arc;
+  /** Fills from the centre outwards as the telegraph runs, so "how long until this hurts" is
+   * readable at a glance instead of only as a slowly brightening outline. */
+  private hazardFill!: Phaser.GameObjects.Arc;
   private feedback!: FeedbackPool;
   private audio = new CombatAudio();
   private showDamageNumbers = true;
@@ -250,6 +254,7 @@ class TestScene extends Phaser.Scene {
     paintCorruptedForestGround(this, TEST_WORLD.width, TEST_WORLD.height, scenery);
     for (const point of borderBandPoints(26, TEST_WORLD.width, TEST_WORLD.height, 90, scenery))
       plantCorruptedTree(this, point.x, point.y, scenery);
+    addAmbientSpores(this, TEST_WORLD.width, TEST_WORLD.height);
     createPixelLabAnimations(this, this.character);
     this.physics.world.setBounds(0, 0, TEST_WORLD.width, TEST_WORLD.height);
     const walls = this.physics.add.staticGroup();
@@ -269,6 +274,10 @@ class TestScene extends Phaser.Scene {
     this.addDummy('dummy:one', 360, 180, 0);
     this.addDummy('dummy:two', 400, 260, 25);
     this.addDummy('dummy:three', 300, 330, 60);
+    this.hazardFill = this.add
+      .circle(HAZARD_POSITION.x, HAZARD_POSITION.y, HAZARD.radiusPx, 0x8a3ffc, 0.22)
+      .setDepth(3)
+      .setScale(0);
     this.hazardIndicator = this.add
       .circle(HAZARD_POSITION.x, HAZARD_POSITION.y, HAZARD.radiusPx, 0x8a3ffc, 0)
       .setStrokeStyle(2, 0x8a3ffc, 0)
@@ -359,15 +368,29 @@ class TestScene extends Phaser.Scene {
     const telegraphing = now >= telegraphStartsAt && now < this.hazardPulseAt;
     const progress = telegraphing ? (now - telegraphStartsAt) / HAZARD.telegraphMs : 0;
     this.hazardIndicator.setStrokeStyle(2, 0x8a3ffc, telegraphing ? 0.35 + progress * 0.5 : 0);
-    this.hazardIndicator.setFillStyle(0x8a3ffc, telegraphing ? progress * 0.12 : 0);
+    this.hazardFill.setScale(telegraphing ? progress : 0);
     if (now < this.hazardPulseAt) return;
     this.hazardPulseAt = now + HAZARD.periodMs;
+    this.flashHazard();
     const distance = Math.hypot(
       this.player.x - HAZARD_POSITION.x,
       this.player.y - HAZARD_POSITION.y,
     );
     if (distance <= HAZARD.radiusPx)
       this.handleEvents(this.controller.applyIncomingDamage(HAZARD.damage, now));
+  }
+  /** One expanding ring per resolved pulse — created on the 4s beat, not per frame. */
+  private flashHazard(): void {
+    const flash = this.add
+      .circle(HAZARD_POSITION.x, HAZARD_POSITION.y, HAZARD.radiusPx, 0x8a3ffc, 0.45)
+      .setDepth(5);
+    this.tweens.add({
+      targets: flash,
+      scale: 1.35,
+      alpha: 0,
+      duration: 260,
+      onComplete: () => flash.destroy(),
+    });
   }
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
