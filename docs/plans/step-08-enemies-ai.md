@@ -342,3 +342,17 @@ orden de bloqueo:
    a estos comportamientos concretos.
 4. Smoke real de navegador (equivalente al que cerró el Paso 7) y el cierre final en `GOAL.md`
    (Estado del Paso 8 → `[x]`, última fila del Registro).
+
+**Punto de decisión explícito para el próximo loop**: al llegar acá se le presentaron al usuario
+tres caminos posibles y el usuario cortó la pregunta pidiendo en cambio que quedara documentado
+(este bloque) — todavía **no eligió** ninguno. No asumir ninguno por defecto; la próxima
+continuación de este documento debe preguntar primero. Los tres caminos son:
+
+- (a) **Seguir profundizando lógica pura** de comportamientos específicos por enemigo (punto 3
+  arriba: Chamán/Bestia/Bruto) sin tocar sprites — mismo estilo de trabajo que 8.1-8.8, sigue sin
+  ser visible en el navegador.
+- (b) **Generar sprites de los 5 enemigos vía PixelLab** — desbloquea (a) el adaptador de Phaser y
+  (b) que el Paso 8 sea real y jugable. Requiere una decisión de presupuesto/plan de PixelLab del
+  usuario (mismo tipo de decisión que la del Guardián/Ranger al inicio de la sesión).
+- (c) **Avanzar al Paso 9** (mapa y misión / Bosque Corrupto) dejando el Paso 8 documentado tal
+  cual está (bloqueado en assets), para no quedar parado esperando una decisión de assets.
