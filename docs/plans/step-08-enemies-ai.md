@@ -135,6 +135,11 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
   Se pospone 8.0d y se funde con 8.2/8.3: el mundo de paso fijo se extrae recién cuando la IA y la
   navegación necesiten integrar posición/velocidad, ahí donde el riesgo de dependencia de framerate
   es real y hay algo concreto (posiciones de enemigos moviéndose) para probar antes/después.
+- 2026-07-30 (8.2 parte 2): `stepEnemy` (el `SimulationWorld` fusionado) vive en
+  `packages/shared`, no en `apps/web/src/game/sim/` — igual que el resto del núcleo de combate,
+  así el Paso 14 (servidor autoritativo) lo reusa sin reescritura. `apps/web/src/game/sim/` queda
+  reservado para el adaptador puro de Phaser (instanciar sprites, alimentar `toMs` desde el reloj
+  del juego), que llega en 8.4 cuando haya perfiles de enemigo reales que dibujar.
 
 ## Milestones
 
@@ -196,7 +201,16 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       cualquier combinación. Sin A*, según lo decidido. 5 tests nuevos; 100 tests totales verdes.
       Todavía sin wiring a `runtime.ts` ni `SimulationWorld` (ver Trabajo pendiente) - son funciones
       puras de posición a velocidad deseada, no hay todavía un tick real que las alimente.
-- [ ] Pendiente: 8.2 (parte 2, `SimulationWorld` fusionado aquí) y 8.4 a 8.8.
+- [x] Completado (2026-07-30): 8.2 (parte 2) `SimulationWorld` fusionado. Nuevo
+      `packages/shared/src/enemy-simulation.ts` (`stepEnemy`): compone percepción → `decideEnemyState`
+      → velocidad de `steering.ts` (chase = seek+separación, retreat = arrive+separación hacia el
+      spawn, el resto queda estático) → posición integrada sobre una ventana `[fromMs, toMs)`
+      explícita, mismo patrón que `advanceGuardianCombat` (sin acumulador de delta oculto). Sigue sin
+      Phaser — el adaptador de escena (`apps/web/src/game/sim/`) que instancia sprites reales y
+      alimenta `toMs` desde el reloj del juego queda para 8.4, cuando existan los cinco perfiles de
+      enemigo que realmente lo necesiten. 5 tests nuevos (uno de ellos detectó un error de fixture
+      propio durante la verificación, no del código — ver Resultados). 105 tests totales verdes.
+- [ ] Pendiente: 8.4 a 8.8.
 
 ## Pruebas
 
@@ -219,6 +233,12 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
   de "cobertura exacta" que había agregado en `validation.ts` resultó ser código muerto (el schema
   ya garantiza 5 entradas únicas de un enum de exactamente 5 valores, así que la cobertura total es
   automática) — se eliminó en vez de dejarlo sin poder alcanzarse nunca por un test.
+- 2026-07-30 (8.2 parte 2): dos de los 5 tests iniciales de `stepEnemy` fallaron en la primera
+  corrida, pero el bug estaba en el fixture de test, no en `stepEnemy`: usaban un blanco a 1000px
+  con `loseTargetRadiusPx: 320`, así que el enemigo correctamente perdía el blanco y volvía a
+  `restState` en vez de perseguir — el comportamiento esperado del test era incorrecto, no el
+  código. Corregido acercando el blanco a 300px (dentro del radio de histéresis); los 5 tests
+  quedaron verdes sin tocar `stepEnemy`.
 - 2026-07-30 (8.2 parte 1): la FSM pura (`decideEnemyState`) no necesita `SimulationWorld` para
   existir ni para probarse — es una función de entrada/salida sin reloj ni posición mutable. Se
   implementa y prueba primero; la extracción de `SimulationWorld` queda para cuando el adaptador de
@@ -226,9 +246,9 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
   que es el consumidor concreto que 8.0d necesitaba y no tenía.
 - 2026-07-30 (8.3): mismo razonamiento que 8.2 — `steering.ts` es aritmética de vectores pura
   (posición → velocidad deseada), no necesita un mundo de simulación para existir ni para
-  probarse. `SimulationWorld` sigue pospuesto hasta el adaptador de Phaser (`apps/web/src/game/
-sim/`), que ahora sí tiene dos consumidores reales y completos (FSM + steering) para integrar en
-  vez de uno hipotético.
+  probarse. `SimulationWorld` sigue pospuesto hasta el adaptador de Phaser (`apps/web/src/game/sim/`),
+  que ahora sí tiene dos consumidores reales y completos (FSM + steering) para integrar en vez de
+  uno hipotético.
 
 ## Trabajo pendiente
 
