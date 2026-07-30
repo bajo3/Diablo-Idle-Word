@@ -15,7 +15,13 @@ import {
 import { localAssetManifest, validateAssetManifest, validateLoadedFrameCount } from './assets';
 import { motionFromInput, type Direction4, type LocalCharacterState } from './domain';
 import { arcadeDebugEnabled, arcadeDebugOptIn } from './presentation';
-import { addVignette, paintCorruptedForestGround, paintStoneObstacle } from './environment';
+import {
+  addVignette,
+  borderBandPoints,
+  paintCorruptedForestGround,
+  paintStoneObstacle,
+  plantCorruptedTree,
+} from './environment';
 import {
   darkKnight,
   mapDirection,
@@ -240,12 +246,10 @@ class TestScene extends Phaser.Scene {
       createSeededRandom(this.runSeed),
       constrainDummyKnockback,
     );
-    paintCorruptedForestGround(
-      this,
-      TEST_WORLD.width,
-      TEST_WORLD.height,
-      createSeededRandom(this.runSeed),
-    );
+    const scenery = createSeededRandom(this.runSeed);
+    paintCorruptedForestGround(this, TEST_WORLD.width, TEST_WORLD.height, scenery);
+    for (const point of borderBandPoints(26, TEST_WORLD.width, TEST_WORLD.height, 90, scenery))
+      plantCorruptedTree(this, point.x, point.y, scenery);
     createPixelLabAnimations(this, this.character);
     this.physics.world.setBounds(0, 0, TEST_WORLD.width, TEST_WORLD.height);
     const walls = this.physics.add.staticGroup();
@@ -336,10 +340,17 @@ class TestScene extends Phaser.Scene {
   }
   private addDummy(id: string, x: number, y: number, armor: number): void {
     this.controller.addDummy({ id, position: { x, y }, armor, health: 220, maxHealth: 220 });
-    this.add.ellipse(x, y + 14, 36, 12, 0x000000, 0.35).setDepth(y - 1);
+    // A corrupted training totem rather than a flat ring: shadow, weathered stone body, a lit top
+    // face and a dim corruption core, so a target reads as an object standing on the ground.
+    this.add.ellipse(x, y + 12, 38, 13, 0x000000, 0.38).setDepth(y - 2);
+    this.add.rectangle(x, y + 4, 26, 30, 0x2a2622).setDepth(y - 1);
+    this.add.ellipse(x, y - 10, 30, 15, 0x3a352e).setDepth(y - 1);
     this.dummyVisuals.set(
       id,
-      this.add.circle(x, y, 19, 0x2f2545).setStrokeStyle(3, 0x8a3ffc, 0.9).setDepth(y),
+      this.add
+        .circle(x, y - 10, 8, 0x6b3f8a)
+        .setStrokeStyle(2, 0x8a3ffc, 0.85)
+        .setDepth(y),
     );
   }
   /** Telegraphs, then resolves, one static periodic pulse — data-driven, no detection/nav/aggro. */

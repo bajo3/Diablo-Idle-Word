@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createSeededRandom } from '@brecha/shared';
 
-import { scatterPoints } from './environment';
+import { borderBandPoints, scatterPoints } from './environment';
 
 describe('environment scatter', () => {
   it('places every point inside the margin-inset rectangle', () => {
@@ -27,5 +27,34 @@ describe('environment scatter', () => {
   it('returns nothing for a non-positive count instead of throwing', () => {
     expect(scatterPoints(0, 100, 100, 0, createSeededRandom(1))).toEqual([]);
     expect(scatterPoints(-5, 100, 100, 0, createSeededRandom(1))).toEqual([]);
+  });
+});
+
+describe('border band placement', () => {
+  const width = 1280;
+  const height = 720;
+  const band = 90;
+
+  it('keeps every point inside the border band, never in the open arena', () => {
+    const points = borderBandPoints(300, width, height, band, createSeededRandom(4));
+    expect(points).toHaveLength(300);
+    for (const point of points) {
+      const inBand =
+        point.x <= band || point.x >= width - band || point.y <= band || point.y >= height - band;
+      expect(inBand).toBe(true);
+      expect(point.x).toBeGreaterThanOrEqual(0);
+      expect(point.x).toBeLessThanOrEqual(width);
+      expect(point.y).toBeGreaterThanOrEqual(0);
+      expect(point.y).toBeLessThanOrEqual(height);
+    }
+  });
+
+  it('lays out the same forest for the same seed', () => {
+    expect(borderBandPoints(40, width, height, band, createSeededRandom(11))).toEqual(
+      borderBandPoints(40, width, height, band, createSeededRandom(11)),
+    );
+    expect(borderBandPoints(40, width, height, band, createSeededRandom(11))).not.toEqual(
+      borderBandPoints(40, width, height, band, createSeededRandom(12)),
+    );
   });
 });

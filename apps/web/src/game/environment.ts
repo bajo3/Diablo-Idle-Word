@@ -139,6 +139,69 @@ export function paintStoneObstacle(
 }
 
 /**
+ * Deterministic positions in the border band of the world — the ring between the world edge and
+ * an inner rectangle. Trees go here rather than in the arena so the forest frames the fight
+ * without ever standing where the Guardian walks, which keeps them pure decoration and avoids a
+ * collision body that knockback (constrained against `TEST_OBSTACLES` only) would ignore.
+ */
+export function borderBandPoints(
+  count: number,
+  width: number,
+  height: number,
+  bandPx: number,
+  random: RandomSource,
+): readonly ScatterPoint[] {
+  return Array.from({ length: Math.max(0, count) }, () => {
+    const point = { x: random.nextInt(0, width), y: random.nextInt(0, height) };
+    const insideBand =
+      point.x < bandPx || point.x > width - bandPx || point.y < bandPx || point.y > height - bandPx;
+    if (insideBand) return point;
+    // Push the point out to the nearest edge instead of rejecting and re-rolling, so the number of
+    // random draws stays fixed and the layout stays reproducible for a given seed.
+    const distances = [point.x, width - point.x, point.y, height - point.y];
+    const nearest = Math.min(...distances);
+    if (nearest === distances[0]) return { x: random.nextInt(0, bandPx), y: point.y };
+    if (nearest === distances[1]) return { x: width - random.nextInt(0, bandPx), y: point.y };
+    if (nearest === distances[2]) return { x: point.x, y: random.nextInt(0, bandPx) };
+    return { x: point.x, y: height - random.nextInt(0, bandPx) };
+  });
+}
+
+/**
+ * A corrupted tree: dark trunk under a canopy of overlapping blobs, depth-sorted by its own base
+ * so the Guardian passes correctly in front of or behind it.
+ */
+export function plantCorruptedTree(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  random: RandomSource,
+): Phaser.GameObjects.Container {
+  const trunkHeight = random.nextInt(26, 46);
+  const canopyRadius = random.nextInt(18, 30);
+  const blighted = random.next() < 0.3;
+  // Kept close to the soil value on purpose: a brighter canopy reads as bright green blobs
+  // floating over a dark floor rather than as trees standing in a night forest.
+  const canopyColor = blighted ? 0x241a30 : 0x18220f;
+  const canopyHighlight = blighted ? 0x2f2340 : 0x1f2c16;
+  const parts: Phaser.GameObjects.GameObject[] = [
+    scene.add.ellipse(0, 2, canopyRadius * 1.6, 10, 0x000000, 0.3),
+    scene.add.rectangle(0, -trunkHeight / 2, 7, trunkHeight, 0x241d18),
+    scene.add.rectangle(-2, -trunkHeight / 2, 2, trunkHeight, 0x322a22).setAlpha(0.8),
+  ];
+  for (let blob = 0; blob < 5; blob += 1)
+    parts.push(
+      scene.add.circle(
+        random.nextInt(-canopyRadius, canopyRadius) * 0.6,
+        -trunkHeight - random.nextInt(0, 14),
+        random.nextInt(Math.round(canopyRadius * 0.5), canopyRadius),
+        blob % 2 === 0 ? canopyColor : canopyHighlight,
+      ),
+    );
+  return scene.add.container(x, y, parts).setDepth(y);
+}
+
+/**
  * Camera-locked radial vignette that darkens the frame edges without touching gameplay. A
  * `scrollFactor(0)` object is still scaled by camera zoom, so the caller's zoom is divided back
  * out to keep the overlay exactly viewport-sized.
