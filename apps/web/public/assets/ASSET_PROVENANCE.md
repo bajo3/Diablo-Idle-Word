@@ -22,9 +22,17 @@ Cada personaje trae:
 - `metadata/manifest.json` — frameWidth/frameHeight/frameCount por animación y dirección.
 - `previews/<id>_preview.png` — pose estática de referencia.
 
-Sirven como set de arte de referencia/candidato para cuando el proyecto pase de la etapa técnica
-(Paso 6/7, placeholders) a la etapa visual. Para usarlos habría que decidir entre (a) adaptar
-`assets.ts`/`validateAssetManifest` para aceptar sprites fusionados de tamaño variable, o
-(b) regenerar el arte respetando el contrato de 4 capas de 64×64. El script
+**Estado (2026-07-30): el Caballero Oscuro ya está conectado y es el sprite que se ve en la
+partida local.** La decisión que este documento dejaba abierta se resolvió por una tercera vía, ni
+(a) ni (b): en vez de forzar el arte fusionado dentro del contrato de capas o regenerarlo, se
+agregó un módulo aparte, `apps/web/src/game/pixellab-characters.ts`, que describe este contrato
+distinto (92×92, una hoja por animación y dirección, `west` espejado de `east`) y mapea los once
+estados de la FSM visual y las cuatro direcciones de juego sobre las cinco animaciones y tres
+direcciones que realmente se generaron. Así el contrato de capas de `assets.ts` sigue intacto,
+validado y honesto sobre lo que describe — es la forma en la que se van a describir los enemigos
+del Paso 8 — y el Guardián renderiza arte real. El Ranger sigue sin conectar (no hay todavía una
+segunda clase jugable que lo use).
+
+El script
 `scripts/pixellab-process-character.mjs` reconstruye estos spritesheets a partir de un export ZIP
 de PixelLab (`GET /mcp/characters/{id}/download`) si hace falta regenerarlos o agregar personajes.

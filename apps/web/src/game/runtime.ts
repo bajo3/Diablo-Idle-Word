@@ -9,20 +9,26 @@ import {
   type CombatEvent,
 } from './combat-controller';
 import {
-  combatAnimationKey,
   guardianCombatPresentation,
   validateGuardianCombatPresentation,
 } from './combat-presentation';
-import {
-  localAssetManifest,
-  validateAssetManifest,
-  validateLoadedFrameCount,
-  type AssetManifestEntry,
-} from './assets';
+import { localAssetManifest, validateAssetManifest, validateLoadedFrameCount } from './assets';
 import { motionFromInput, type Direction4, type LocalCharacterState } from './domain';
-import { arcadeDebugEnabled, layerAnimationKey } from './presentation';
+import { arcadeDebugEnabled, arcadeDebugOptIn } from './presentation';
+import { addVignette, paintCorruptedForestGround, paintStoneObstacle } from './environment';
+import {
+  darkKnight,
+  mapDirection,
+  mapState,
+  pixelLabKey,
+  pixelLabSheetsToLoad,
+  type PixelLabAnimationName,
+  type PixelLabCharacter,
+} from './pixellab-characters';
 
 const TEST_WORLD = Object.freeze({ width: 1280, height: 720, margin: 24 });
+/** The generated character art is 92px tall; without zoom it reads as a speck on a 960x540 canvas. */
+const CAMERA_ZOOM = 1.6;
 const TEST_OBSTACLES = [
   [480, 220, 320, 32],
   [820, 450, 32, 280],
@@ -63,8 +69,15 @@ class BootScene extends Phaser.Scene {
   public preload(): void {
     validateAssetManifest(localAssetManifest);
     validateGuardianCombatPresentation();
+    // The layered placeholder contract stays loaded and validated: it is still the shape Paso 8's
+    // enemies are described with, even though the Guardian now renders real generated art.
     for (const asset of localAssetManifest)
       this.load.spritesheet(asset.id, asset.path, { frameWidth: 64, frameHeight: 64 });
+    for (const sheet of pixelLabSheetsToLoad(darkKnight))
+      this.load.spritesheet(sheet.key, sheet.path, {
+        frameWidth: sheet.frameWidth,
+        frameHeight: sheet.frameHeight,
+      });
   }
   public create(): void {
     for (const asset of localAssetManifest)
@@ -194,11 +207,10 @@ class TestScene extends Phaser.Scene {
   private connection: RuntimeConnection = 'online';
   private player!: Phaser.Physics.Arcade.Sprite;
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
-  private shadow!: Phaser.GameObjects.Image;
-  private layers: Phaser.GameObjects.Sprite[] = [];
+  private shadow!: Phaser.GameObjects.Ellipse;
+  private readonly character: PixelLabCharacter = darkKnight;
   private state: LocalCharacterState = 'idle';
   private actionEndsAt = 0;
-  private activeAbility: 'slash' | 'powerStrike' | 'whirlwind' | 'ironSkin' | undefined;
   private pausedAt: number | undefined;
   private pausedDuration = 0;
   /** One seed per run: identical command sequences must replay identically (GOAL.md §32). */
@@ -228,28 +240,27 @@ class TestScene extends Phaser.Scene {
       createSeededRandom(this.runSeed),
       constrainDummyKnockback,
     );
-    for (const asset of localAssetManifest) createLayerAnimations(this, asset);
+    paintCorruptedForestGround(
+      this,
+      TEST_WORLD.width,
+      TEST_WORLD.height,
+      createSeededRandom(this.runSeed),
+    );
+    createPixelLabAnimations(this, this.character);
     this.physics.world.setBounds(0, 0, TEST_WORLD.width, TEST_WORLD.height);
     const walls = this.physics.add.staticGroup();
     TEST_OBSTACLES.forEach(([x, y, width, height]) => {
-      walls.add(this.add.rectangle(x, y, width, height, 0x34433a).setDepth(y));
+      walls.add(paintStoneObstacle(this, x, y, width, height));
     });
-    this.player = this.physics.add.sprite(160, 160, 'guardian_placeholder_body').setOrigin(0.5, 1);
+    this.shadow = this.add.ellipse(160, 160, 34, 12, 0x000000, 0.4).setDepth(159);
+    this.player = this.physics.add
+      .sprite(160, 160, pixelLabKey(this.character, 'idle', 'south'))
+      .setOrigin(this.character.origin.x, this.character.origin.y);
     this.player
       .setCollideWorldBounds(true)
-      .setBodySize(22, 18)
-      .setOffset(21, 46)
+      .setBodySize(26, 18)
+      .setOffset(33, 61)
       .setDepth(this.player.y);
-    this.shadow = this.add
-      .image(this.player.x, this.player.y, 'guardian_placeholder_shadow', 0)
-      .setOrigin(0.5, 1)
-      .setDepth(this.player.y - 1);
-    this.layers = ['armor', 'weapon'].map((layer, index) =>
-      this.add
-        .sprite(this.player.x, this.player.y, `guardian_placeholder_${layer}`)
-        .setOrigin(0.5, 1)
-        .setDepth(this.player.y + index + 1),
-    );
     this.physics.add.collider(this.player, walls);
     this.addDummy('dummy:one', 360, 180, 0);
     this.addDummy('dummy:two', 400, 260, 25);
@@ -264,7 +275,9 @@ class TestScene extends Phaser.Scene {
     >;
     this.cameras.main
       .startFollow(this.player, true, 0.12, 0.12)
-      .setBounds(0, 0, TEST_WORLD.width, TEST_WORLD.height);
+      .setBounds(0, 0, TEST_WORLD.width, TEST_WORLD.height)
+      .setZoom(CAMERA_ZOOM);
+    addVignette(this, this.cameras.main.width, this.cameras.main.height, CAMERA_ZOOM);
     this.feedback = new FeedbackPool(this);
     this.game.canvas.addEventListener('contextmenu', this.suppressContextMenu);
     this.input.on('pointermove', this.onPointerMove, this);
@@ -323,9 +336,10 @@ class TestScene extends Phaser.Scene {
   }
   private addDummy(id: string, x: number, y: number, armor: number): void {
     this.controller.addDummy({ id, position: { x, y }, armor, health: 220, maxHealth: 220 });
+    this.add.ellipse(x, y + 14, 36, 12, 0x000000, 0.35).setDepth(y - 1);
     this.dummyVisuals.set(
       id,
-      this.add.circle(x, y, 20, 0x9c7a55).setStrokeStyle(3, 0xe7cda5).setDepth(y),
+      this.add.circle(x, y, 19, 0x2f2545).setStrokeStyle(3, 0x8a3ffc, 0.9).setDepth(y),
     );
   }
   /** Telegraphs, then resolves, one static periodic pulse — data-driven, no detection/nav/aggro. */
@@ -377,7 +391,6 @@ class TestScene extends Phaser.Scene {
     );
     if (events.some((event) => event.type === 'abilityAccepted')) {
       const presentation = guardianCombatPresentation.find((entry) => entry.ability === ability)!;
-      this.activeAbility = ability;
       this.state = presentation.state;
       this.actionEndsAt = this.combatNow() + presentation.durationMs;
       this.audio.play(
@@ -420,26 +433,17 @@ class TestScene extends Phaser.Scene {
     }
   }
   private syncLayers(): void {
-    this.shadow.setPosition(this.player.x, this.player.y).setDepth(this.player.y - 1);
-    this.layers.forEach((layer, index) =>
-      layer.setPosition(this.player.x, this.player.y).setDepth(this.player.y + index + 1),
-    );
+    this.shadow.setPosition(this.player.x, this.player.y + 2).setDepth(this.player.y - 1);
   }
+  /**
+   * The generated art is composited (no separate armor/weapon layers), so one sprite carries the
+   * whole character: the visual FSM state picks the animation and the facing picks the generated
+   * sheet, mirroring `east` when the Guardian faces west.
+   */
   private playSynchronizedAnimations(): void {
-    if (this.combatNow() >= this.actionEndsAt) this.activeAbility = undefined;
-    const key =
-      this.activeAbility === undefined
-        ? layerAnimationKey('body', this.state, this.facing)
-        : combatAnimationKey('body', this.activeAbility, this.facing);
-    this.player.anims.play(key, true);
-    this.layers.forEach((layer, index) =>
-      layer.play(
-        this.activeAbility === undefined
-          ? layerAnimationKey(index === 0 ? 'armor' : 'weapon', this.state, this.facing)
-          : combatAnimationKey(index === 0 ? 'armor' : 'weapon', this.activeAbility, this.facing),
-        true,
-      ),
-    );
+    const { sheet, flipX } = mapDirection(this.facing);
+    this.player.setFlipX(flipX);
+    this.player.anims.play(pixelLabKey(this.character, mapState(this.state), sheet), true);
   }
   private publishHud(force: boolean): void {
     // setConnection/setDamageNumbers are part of the runtime's public API and are called by
@@ -511,28 +515,25 @@ function constrainDummyKnockback(
     },
   );
 }
-function createLayerAnimations(scene: Phaser.Scene, asset: AssetManifestEntry): void {
-  for (const animation of asset.animations)
-    scene.anims.create({
-      key: `${asset.id}:${animation.id}`,
-      frames: scene.anims.generateFrameNumbers(asset.id, {
-        start: animation.start,
-        end: animation.end,
-      }),
-      frameRate: animation.state === 'moving' ? 8 : animation.state === 'idle' ? 1 : 10,
-      repeat: animation.state === 'moving' || animation.state === 'idle' ? -1 : 0,
-    });
-  if (asset.layer !== 'shadow')
-    for (const presentation of guardianCombatPresentation)
-      for (const direction of ['up', 'down', 'left', 'right'] as const) {
-        const offset = ['up', 'down', 'left', 'right'].indexOf(direction) * 4;
-        scene.anims.create({
-          key: combatAnimationKey(asset.layer, presentation.ability, direction),
-          frames: presentation.frames.map((frame) => ({ key: asset.id, frame: offset + frame })),
-          frameRate: presentation.frameRate,
-          repeat: presentation.ability === 'whirlwind' ? 3 : 0,
-        });
-      }
+/** One Phaser animation per (generated animation × generated direction) of a PixelLab character. */
+function createPixelLabAnimations(scene: Phaser.Scene, character: PixelLabCharacter): void {
+  const names = Object.keys(character.animations) as PixelLabAnimationName[];
+  for (const name of names) {
+    const animation = character.animations[name];
+    for (const direction of ['north', 'south', 'east'] as const) {
+      const key = pixelLabKey(character, name, direction);
+      if (scene.anims.exists(key)) continue;
+      scene.anims.create({
+        key,
+        frames: scene.anims.generateFrameNumbers(key, {
+          start: 0,
+          end: animation.sheets[direction].frameCount - 1,
+        }),
+        frameRate: animation.frameRate,
+        repeat: animation.repeat,
+      });
+    }
+  }
 }
 const runtimes = new WeakMap<HTMLElement, GameRuntime>();
 export function mountGameRuntime(
@@ -550,7 +551,13 @@ export function mountGameRuntime(
     fps: { target: 60 },
     physics: {
       default: 'arcade',
-      arcade: { debug: arcadeDebugEnabled(import.meta.env.DEV), fps: 60 },
+      arcade: {
+        debug: arcadeDebugEnabled(
+          import.meta.env.DEV,
+          arcadeDebugOptIn(typeof localStorage === 'undefined' ? undefined : localStorage),
+        ),
+        fps: 60,
+      },
     },
     scene: [BootScene, scene],
   });
