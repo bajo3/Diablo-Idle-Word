@@ -210,7 +210,18 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       alimenta `toMs` desde el reloj del juego queda para 8.4, cuando existan los cinco perfiles de
       enemigo que realmente lo necesiten. 5 tests nuevos (uno de ellos detectó un error de fixture
       propio durante la verificación, no del código — ver Resultados). 105 tests totales verdes.
-- [ ] Pendiente: 8.4 a 8.8.
+- [x] Completado (2026-07-30, parcial): 8.4 (parte 1) diferenciación de comportamiento data-driven.
+      Nuevo `EnemyMovementStyle` (`'close' | 'keepDistance'`) en `enemy-simulation.ts`, derivado por
+      el caller de `behaviors.includes('keep_distance')` — nunca del id — así que sigue sin
+      `if (id === ...)` (GOAL.md 8.4). `close` sostiene posición en rango; `keepDistance` huye si el
+      blanco queda a menos de la mitad de `attackRangePx`. La idea original (desviar el punto de
+      persecución mientras `chase`) resultó ser código muerto: `decideEnemyState` sólo permanece en
+      `chase` mientras `distanceToTargetPx > attackRangePx`, así que un perseguidor nunca puede estar
+      dentro de su propio rango durante `chase` — el rediseño lo mueve a `attack`/`use_ability`,
+      donde "demasiado cerca" sí es alcanzable. 2 tests nuevos (5 reemplazan intentos fallidos, ver
+      Resultados). 107 tests totales verdes. Todavía falta mapear `behaviors` → `movementStyle` para
+      los 5 enemigos reales y wirear a `runtime.ts` — parte 2.
+- [ ] Pendiente: 8.4 (parte 2, mapeo real de los 5 enemigos + wiring a Phaser) a 8.8.
 
 ## Pruebas
 
@@ -239,6 +250,14 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
   `restState` en vez de perseguir — el comportamiento esperado del test era incorrecto, no el
   código. Corregido acercando el blanco a 300px (dentro del radio de histéresis); los 5 tests
   quedaron verdes sin tocar `stepEnemy`.
+- 2026-07-30 (8.4 parte 1): el primer diseño de `keepDistance` desviaba el punto de `seek` durante
+  `chase` hacia el borde de `attackRangePx` en vez del blanco exacto. Los tests lo probaban con un
+  solo tick grande y fallaron; investigar por qué reveló que el diseño entero era alcanzable en
+  cero casos reales — `decideEnemyState` ya garantiza `distanceToTargetPx > attackRangePx` en todo
+  momento que el estado sea `chase`, así que el punto desviado y el blanco real siempre están del
+  mismo lado (misma dirección de movimiento), sin importar el tick. Se descartó esa rama entera (no
+  quedó como código muerto) y se reubicó la lógica en `attack`/`use_ability`, el único estado donde
+  "demasiado cerca" es alcanzable de verdad. Los tests se reescribieron para probar exactamente eso.
 - 2026-07-30 (8.2 parte 1): la FSM pura (`decideEnemyState`) no necesita `SimulationWorld` para
   existir ni para probarse — es una función de entrada/salida sin reloj ni posición mutable. Se
   implementa y prueba primero; la extracción de `SimulationWorld` queda para cuando el adaptador de

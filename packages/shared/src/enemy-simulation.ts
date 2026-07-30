@@ -5,7 +5,14 @@ import {
   type EnemyAiState,
   type EnemyAiTuning,
 } from './enemy-ai.js';
-import { arrive, combineSteering, seek, separation, type SeparationNeighbor } from './steering.js';
+import {
+  arrive,
+  combineSteering,
+  flee,
+  seek,
+  separation,
+  type SeparationNeighbor,
+} from './steering.js';
 
 /**
  * The fixed-step "SimulationWorld" piece deferred from Paso 8.0d: now that both the AI FSM (8.2)
@@ -28,6 +35,20 @@ export type EnemySimState = Readonly<{
   spawnPosition: CombatVector;
 }>;
 
+/**
+ * Data-driven movement differentiation (Paso 8.4): derived by the caller from the enemy's
+ * declared `behaviors` tags (e.g. `behaviors.includes('keep_distance')`), never from its id -
+ * GOAL.md forbids `if (id === ...)` special-casing. `close` (the melee default) holds ground
+ * once engaged, for as long as it's in range. `keepDistance` (ranged enemies) also holds ground
+ * normally, but backs away once the target closes to under half its `attackRangePx` - basic
+ * kiting, so an archer doesn't just stand still while the Guardian walks up to it.
+ *
+ * There's no equivalent difference during `chase`: `decideEnemyState` only stays in `chase` while
+ * `distanceToTargetPx > attackRangePx`, so a chaser can never actually be inside its own attack
+ * range - `attack`/`use_ability` is the only state where "too close" is a reachable condition.
+ */
+export type EnemyMovementStyle = 'close' | 'keepDistance';
+
 export type EnemySimInput = Readonly<{
   targetPosition: CombatVector;
   hasLineOfSight: boolean;
@@ -36,6 +57,7 @@ export type EnemySimInput = Readonly<{
   isStunned: boolean;
   abilityReady: boolean;
   restState: EnemyAiRestState;
+  movementStyle: EnemyMovementStyle;
   fromMs: number;
   toMs: number;
 }>;
@@ -44,9 +66,12 @@ function distance(a: CombatVector, b: CombatVector): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
-/** Only `chase` and `retreat` move for the Paso 8 MVP; `attack`/`use_ability` hold ground to swing,
- * and `idle`/`patrol`/`detect`/`stunned`/`dead` are stationary here (patrol waypoints and knockback
- * are later concerns, not this function's). */
+const ENGAGED_MELEE_STATES: ReadonlySet<EnemyAiState> = new Set(['attack', 'use_ability']);
+
+/** Only `chase` and `retreat` move for the Paso 8 MVP; `idle`/`patrol`/`detect`/`stunned`/`dead`
+ * are stationary here (patrol waypoints and knockback are later concerns, not this function's).
+ * `attack`/`use_ability` normally hold ground too, except a `keepDistance` mover backing off once
+ * the target is too close (see `EnemyMovementStyle`). */
 function velocityFor(
   aiState: EnemyAiState,
   state: EnemySimState,
@@ -75,6 +100,15 @@ function velocityFor(
         ),
         avoidNeighbors,
       ],
+      tuning.moveSpeedPxPerSec,
+    );
+  if (
+    ENGAGED_MELEE_STATES.has(aiState) &&
+    input.movementStyle === 'keepDistance' &&
+    distance(state.position, input.targetPosition) < tuning.ai.attackRangePx / 2
+  )
+    return combineSteering(
+      [flee(state.position, input.targetPosition, tuning.moveSpeedPxPerSec), avoidNeighbors],
       tuning.moveSpeedPxPerSec,
     );
   return { x: 0, y: 0 };

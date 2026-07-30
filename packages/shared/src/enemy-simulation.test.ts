@@ -31,6 +31,7 @@ function input(overrides: Partial<EnemySimInput> = {}): EnemySimInput {
     isStunned: false,
     abilityReady: false,
     restState: 'idle',
+    movementStyle: 'close',
     fromMs: 0,
     toMs: 1000,
     ...overrides,
@@ -103,5 +104,29 @@ describe('enemy simulation step', () => {
     expect(crowded.position.x).toBeLessThan(clear.position.x);
     const speed = Math.hypot(crowded.position.x, crowded.position.y) / 0.1;
     expect(speed).toBeLessThanOrEqual(tuning.moveSpeedPxPerSec + 1e-6);
+  });
+
+  it('a close mover holds ground in attack range regardless of how close the target is', () => {
+    const held = stepEnemy(
+      state({ aiState: 'attack', position: { x: 10, y: 0 } }),
+      input({ movementStyle: 'close', targetPosition: { x: 0, y: 0 }, toMs: 100 }),
+      tuning,
+    );
+    expect(held.position).toEqual({ x: 10, y: 0 });
+  });
+
+  it('a keepDistance mover backs away once the target is under half its attackRangePx, but not otherwise', () => {
+    const kiting = stepEnemy(
+      state({ aiState: 'attack', position: { x: 10, y: 0 } }),
+      input({ movementStyle: 'keepDistance', targetPosition: { x: 0, y: 0 }, toMs: 100 }),
+      tuning,
+    );
+    expect(kiting.position.x).toBeGreaterThan(10);
+    const comfortable = stepEnemy(
+      state({ aiState: 'attack', position: { x: 50, y: 0 } }),
+      input({ movementStyle: 'keepDistance', targetPosition: { x: 0, y: 0 }, toMs: 100 }),
+      tuning,
+    );
+    expect(comfortable.position).toEqual({ x: 50, y: 0 });
   });
 });
