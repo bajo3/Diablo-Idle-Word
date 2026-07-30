@@ -22,6 +22,7 @@ export function validateGameData(input: unknown): GameDataCatalog {
     ['item type', data.itemTypes.map(({ id }) => id)],
     ['rarity', data.rarities.map(({ id }) => id)],
     ['enemy', data.enemies.map(({ id }) => id)],
+    ['enemy tuning', data.enemyTuning.map(({ enemyId }) => enemyId)],
     ['sprite sheet', data.spriteSheets.map(({ id }) => id)],
     ['animation', data.animations.map(({ id }) => id)],
     ['asset', data.assets.map(({ id }) => id)],
@@ -59,6 +60,11 @@ export function validateGameData(input: unknown): GameDataCatalog {
   for (const enemy of data.enemies)
     if (!hasExactMembers(enemy.aiStates, expectedAiStates))
       throw new Error(`Enemy has invalid AI state graph: ${enemy.id}`);
+  for (const tuning of data.enemyTuning)
+    if (tuning.loseTargetRadiusPx <= tuning.detectRadiusPx)
+      throw new Error(
+        `Enemy detection needs hysteresis (loseTargetRadiusPx > detectRadiusPx): ${tuning.enemyId}`,
+      );
   const enemyIds = new Set(data.enemies.map(({ id }) => id));
   for (const id of data.zone.enemyIds)
     if (!enemyIds.has(id)) throw new Error(`Zone references unknown enemy: ${id}`);

@@ -250,6 +250,44 @@ export const HazardDefinitionSchema = z.strictObject({
   damage: z.number().int().positive(),
   lethal: z.literal(false),
 });
+/** One enemy's attack: windup (telegraph-visible) -> impact (damage resolves) -> recovery. */
+export const EnemyAttackTuningSchema = z.strictObject({
+  windupMs: z.number().int().nonnegative(),
+  impactMs: z.number().int().nonnegative(),
+  recoveryMs: z.number().int().nonnegative(),
+  rangePx: z.number().int().positive(),
+  arcDegrees: z.number().int().positive().max(360),
+  damageMultiplier: z.number().positive(),
+  cooldownMs: z.number().int().positive(),
+});
+/**
+ * Numerical combat/AI tuning for one enemy (Paso 8.1), kept separate from the descriptive
+ * `EnemyDefinitionSchema` the same way `guardianCombat` is kept separate from `guardian`.
+ * `animationIds`/`frameSize` are reserved identifiers for enemy sprites that don't exist yet
+ * (Paso 8.4+) - they are format-checked here but not cross-referenced against
+ * `animations`/`assets` the way the Guardian's are, since there is nothing to reference yet.
+ */
+export const EnemyTuningSchema = z.strictObject({
+  enemyId: z.enum([
+    'corrupted_minion',
+    'possessed_archer',
+    'dark_shaman',
+    'root_brute',
+    'unstable_beast',
+  ]),
+  tuningStatus: z.literal('PROVISIONAL'),
+  maxHealth: z.number().int().positive(),
+  armor: z.number().int().nonnegative(),
+  moveSpeedPxPerSec: z.number().positive(),
+  detectRadiusPx: z.number().int().positive(),
+  loseTargetRadiusPx: z.number().int().positive(),
+  leashRadiusPx: z.number().int().positive(),
+  attack: EnemyAttackTuningSchema,
+  telegraphMs: z.number().int().nonnegative(),
+  xpReward: z.number().int().positive(),
+  animationIds: z.array(z.string().trim().min(1).max(128)).min(1),
+  frameSize: z.union([z.literal(64), z.literal(128)]),
+});
 export const MapDefinitionSchema = z.strictObject({
   id: z.literal('map.corrupted_forest'),
   format: z.literal('tiled'),
@@ -287,6 +325,7 @@ export const GameDataCatalogSchema = z.strictObject({
   itemTypes: z.array(ItemTypeDefinitionSchema).length(10),
   rarities: z.array(RarityDefinitionSchema).length(4),
   enemies: z.array(EnemyDefinitionSchema).length(5),
+  enemyTuning: z.array(EnemyTuningSchema).length(5),
   zone: ZoneDefinitionSchema,
   mission: MissionDefinitionSchema,
   spriteSheets: z.array(SpriteSheetSchema).min(1),
@@ -305,6 +344,8 @@ export type GuardianDefinition = z.infer<typeof GuardianDefinitionSchema>;
 export type ItemTypeDefinition = z.infer<typeof ItemTypeDefinitionSchema>;
 export type RarityDefinition = z.infer<typeof RarityDefinitionSchema>;
 export type EnemyDefinition = z.infer<typeof EnemyDefinitionSchema>;
+export type EnemyAttackTuning = z.infer<typeof EnemyAttackTuningSchema>;
+export type EnemyTuning = z.infer<typeof EnemyTuningSchema>;
 export type ZoneDefinition = z.infer<typeof ZoneDefinitionSchema>;
 export type MissionDefinition = z.infer<typeof MissionDefinitionSchema>;
 export type Balance = z.infer<typeof BalanceSchema>;

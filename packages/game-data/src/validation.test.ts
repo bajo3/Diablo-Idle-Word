@@ -106,6 +106,29 @@ describe('game data catalog', () => {
     expect(() => validateGameData(incompleteAi)).toThrow('Enemy has invalid AI state graph');
   });
 
+  it('requires enemy tuning to have distinct IDs and detection hysteresis', () => {
+    const duplicateTuning: unknown = {
+      ...GAME_DATA,
+      enemyTuning: [
+        GAME_DATA.enemyTuning[0]!,
+        { ...GAME_DATA.enemyTuning[1]!, enemyId: GAME_DATA.enemyTuning[0]!.enemyId },
+        ...GAME_DATA.enemyTuning.slice(2),
+      ],
+    };
+    expect(() => validateGameData(duplicateTuning)).toThrow('Duplicate enemy tuning IDs');
+    const noHysteresis: unknown = {
+      ...GAME_DATA,
+      enemyTuning: [
+        {
+          ...GAME_DATA.enemyTuning[0]!,
+          loseTargetRadiusPx: GAME_DATA.enemyTuning[0]!.detectRadiusPx,
+        },
+        ...GAME_DATA.enemyTuning.slice(1),
+      ],
+    };
+    expect(() => validateGameData(noHysteresis)).toThrow('needs hysteresis');
+  });
+
   it('requires versioned provisional combat tuning for every Guardian ability', () => {
     expect(GAME_DATA.guardianCombat).toMatchObject({
       combatFormulaVersion: 'guardian-combat.1',

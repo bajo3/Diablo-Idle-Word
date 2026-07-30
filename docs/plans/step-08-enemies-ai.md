@@ -171,7 +171,16 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       chequeos (capa duplicada antes que id duplicado) que un test existente ya fijaba.
 - [x] Decidido (2026-07-30): 8.0d (`SimulationWorld` de paso fijo) se pospone y se funde con 8.2/8.3
       — ver Decisiones. No es un paso pendiente aparte; se retoma dentro de 8.2.
-- [ ] Pendiente: 8.1 a 8.8.
+- [x] Completado (2026-07-30): 8.1 tuning de enemigos. Nuevo `enemyTuning` en `game-data`
+      (`schemas.ts`/`catalog.ts`/`validation.ts`), separado de `enemies` (descriptivo) igual que
+      `guardianCombat`/`guardian`: `maxHealth`, `armor`, `moveSpeedPxPerSec`, `detectRadiusPx`,
+      `loseTargetRadiusPx` (histéresis validada > `detectRadiusPx`), `leashRadiusPx`,
+      `attack{windupMs,impactMs,recoveryMs,rangePx,arcDegrees,damageMultiplier,cooldownMs}`,
+      `telegraphMs`, `xpReward`, `animationIds`/`frameSize` (reservados, sin cross-ref a
+      animaciones reales todavía — no hay sprites de enemigo). `GAME_DATA_VERSION`/
+      `BALANCE_VERSION` → `2026.07.30.2`. 2 tests nuevos (duplicados rechazados, histéresis
+      exigida); 88 tests totales verdes, typecheck/lint/format:check verdes.
+- [ ] Pendiente: 8.2 a 8.8.
 
 ## Pruebas
 
@@ -188,7 +197,12 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
 
 ## Resultados
 
-(se completa durante la implementación)
+- 2026-07-30 (8.1): tuning numérico completo para los 5 enemigos existentes, ver Progreso. Sin
+  sorpresas de arquitectura: el patrón `guardianCombat`/`guardian` ya establecido en Paso 7 se
+  extendió limpiamente a `enemyTuning`/`enemies`. Único ajuste durante la verificación: el chequeo
+  de "cobertura exacta" que había agregado en `validation.ts` resultó ser código muerto (el schema
+  ya garantiza 5 entradas únicas de un enum de exactamente 5 valores, así que la cobertura total es
+  automática) — se eliminó en vez de dejarlo sin poder alcanzarse nunca por un test.
 
 ## Trabajo pendiente
 
