@@ -180,7 +180,16 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       animaciones reales todavía — no hay sprites de enemigo). `GAME_DATA_VERSION`/
       `BALANCE_VERSION` → `2026.07.30.2`. 2 tests nuevos (duplicados rechazados, histéresis
       exigida); 88 tests totales verdes, typecheck/lint/format:check verdes.
-- [ ] Pendiente: 8.2 a 8.8.
+- [x] Completado (2026-07-30): 8.2 (parte 1) FSM de IA pura. Nuevo
+      `packages/shared/src/enemy-ai.ts` (`decideEnemyState`): 9 estados, `dead` absorbente,
+      `stunned` interrumpe y al recuperarse reevalúa desde cero (sin memoria del estado previo),
+      leash (`distanceFromSpawnPx > leashRadiusPx`) fuerza `retreat` incluso con blanco en rango,
+      detección exige radio + línea de visión pero sostener la persecución sólo exige distancia
+      (histéresis vía `loseTargetRadiusPx`), `restState` (`idle`/`patrol`) es un dato de entrada, no
+      una decisión hard-codeada por enemigo. 7 tests nuevos. Todavía sin `SimulationWorld` ni
+      steering (ver Trabajo pendiente) ni wiring a `runtime.ts` — no hay ningún productor real de
+      posición/velocidad de enemigos hasta 8.3/8.4.
+- [ ] Pendiente: 8.2 (parte 2, `SimulationWorld` fusionado aquí) y 8.3 a 8.8.
 
 ## Pruebas
 
@@ -203,6 +212,11 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
   de "cobertura exacta" que había agregado en `validation.ts` resultó ser código muerto (el schema
   ya garantiza 5 entradas únicas de un enum de exactamente 5 valores, así que la cobertura total es
   automática) — se eliminó en vez de dejarlo sin poder alcanzarse nunca por un test.
+- 2026-07-30 (8.2 parte 1): la FSM pura (`decideEnemyState`) no necesita `SimulationWorld` para
+  existir ni para probarse — es una función de entrada/salida sin reloj ni posición mutable. Se
+  implementa y prueba primero; la extracción de `SimulationWorld` queda para cuando el adaptador de
+  Phaser (`apps/web/src/game/sim/`) necesite alimentar esta FSM con percepción real tick a tick,
+  que es el consumidor concreto que 8.0d necesitaba y no tenía.
 
 ## Trabajo pendiente
 
