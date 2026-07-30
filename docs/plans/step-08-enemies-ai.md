@@ -189,7 +189,14 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       una decisión hard-codeada por enemigo. 7 tests nuevos. Todavía sin `SimulationWorld` ni
       steering (ver Trabajo pendiente) ni wiring a `runtime.ts` — no hay ningún productor real de
       posición/velocidad de enemigos hasta 8.3/8.4.
-- [ ] Pendiente: 8.2 (parte 2, `SimulationWorld` fusionado aquí) y 8.3 a 8.8.
+- [x] Completado (2026-07-30): 8.3 navegación simple. Nuevo `packages/shared/src/steering.ts`:
+      `seek`/`flee`/`arrive` (con frenado lineal dentro de `slowingRadiusPx`) y `separation`
+      (empuje ponderado por cercanía, promediado y saturado a `maxSpeed`, ignora vecinos exactos en
+      la misma posición para no dividir por cero), más `combineSteering` para sumar y saturar
+      cualquier combinación. Sin A*, según lo decidido. 5 tests nuevos; 100 tests totales verdes.
+      Todavía sin wiring a `runtime.ts` ni `SimulationWorld` (ver Trabajo pendiente) - son funciones
+      puras de posición a velocidad deseada, no hay todavía un tick real que las alimente.
+- [ ] Pendiente: 8.2 (parte 2, `SimulationWorld` fusionado aquí) y 8.4 a 8.8.
 
 ## Pruebas
 
@@ -217,6 +224,11 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
   implementa y prueba primero; la extracción de `SimulationWorld` queda para cuando el adaptador de
   Phaser (`apps/web/src/game/sim/`) necesite alimentar esta FSM con percepción real tick a tick,
   que es el consumidor concreto que 8.0d necesitaba y no tenía.
+- 2026-07-30 (8.3): mismo razonamiento que 8.2 — `steering.ts` es aritmética de vectores pura
+  (posición → velocidad deseada), no necesita un mundo de simulación para existir ni para
+  probarse. `SimulationWorld` sigue pospuesto hasta el adaptador de Phaser (`apps/web/src/game/
+sim/`), que ahora sí tiene dos consumidores reales y completos (FSM + steering) para integrar en
+  vez de uno hipotético.
 
 ## Trabajo pendiente
 
