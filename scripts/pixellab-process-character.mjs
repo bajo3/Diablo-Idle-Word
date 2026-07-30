@@ -5,17 +5,17 @@
 //
 // Usage: node scripts/process-character.mjs <unzippedWorkDir> <id> <displayName>
 
-import { Jimp } from "jimp";
-import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { Jimp } from 'jimp';
+import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const webRoot = path.resolve(__dirname, "..");
+const webRoot = path.resolve(__dirname, '..');
 
 const [, , workDir, id, displayName] = process.argv;
 if (!workDir || !id || !displayName) {
-  console.error("Usage: node process-character.mjs <unzippedWorkDir> <id> <displayName>");
+  console.error('Usage: node process-character.mjs <unzippedWorkDir> <id> <displayName>');
   process.exit(1);
 }
 
@@ -27,14 +27,14 @@ const ANIM_CONFIG = {
   death: { frameRate: 8, repeat: 0 },
 };
 
-const metadata = JSON.parse(await readFile(path.join(workDir, "metadata.json"), "utf-8"));
+const metadata = JSON.parse(await readFile(path.join(workDir, 'metadata.json'), 'utf-8'));
 const state0 = metadata.states[0];
 const rotations = state0.frames.rotations;
 const animations = state0.frames.animations;
 
-const outFullDir = path.join(webRoot, "public", "assets", "characters", id, "full");
-const outPreviewDir = path.join(webRoot, "public", "assets", "characters", id, "previews");
-const outMetaDir = path.join(webRoot, "public", "assets", "characters", id, "metadata");
+const outFullDir = path.join(webRoot, 'public', 'assets', 'characters', id, 'full');
+const outPreviewDir = path.join(webRoot, 'public', 'assets', 'characters', id, 'previews');
+const outMetaDir = path.join(webRoot, 'public', 'assets', 'characters', id, 'metadata');
 await mkdir(outFullDir, { recursive: true });
 await mkdir(outPreviewDir, { recursive: true });
 await mkdir(outMetaDir, { recursive: true });
@@ -77,7 +77,10 @@ for (const [state, dirs] of Object.entries(animations)) {
 }
 
 if (rotations?.south) {
-  await copyFile(path.join(workDir, rotations.south), path.join(outPreviewDir, `${id}_preview.png`));
+  await copyFile(
+    path.join(workDir, rotations.south),
+    path.join(outPreviewDir, `${id}_preview.png`),
+  );
 }
 
 const manifest = {
@@ -85,9 +88,9 @@ const manifest = {
   displayName,
   frameSize: frameSize ?? { width: 0, height: 0 },
   generatedDirections: Array.from(generatedDirectionsSet),
-  mirroredDirections: [{ direction: "left", mirrorsFrom: "east" }],
+  mirroredDirections: [{ direction: 'left', mirrorsFrom: 'east' }],
   animations: manifestAnimations,
 };
 
-await writeFile(path.join(outMetaDir, "manifest.json"), JSON.stringify(manifest, null, 2));
+await writeFile(path.join(outMetaDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
 console.log(`manifest written for ${id}`);

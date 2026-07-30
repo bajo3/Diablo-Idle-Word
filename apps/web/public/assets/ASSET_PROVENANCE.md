@@ -16,6 +16,7 @@ por IA para este proyecto). **No están enchufados al pipeline de combate ni pas
 actual de 4 capas × 64×64 × 4 direcciones literales.
 
 Cada personaje trae:
+
 - `full/<id>_<state>_<direction>.png` — spritesheets horizontales por animación (`idle`, `walk`,
   `basic_attack`, `hit`, `death`).
 - `metadata/manifest.json` — frameWidth/frameHeight/frameCount por animación y dirección.

@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 
+import { createSeededRandom, seedFromString } from '@brecha/shared';
+
 import {
   constrainKnockbackSweep,
   LocalCombatController,
@@ -134,6 +136,9 @@ class FeedbackPool {
   }
 }
 
+/** Bounds the executionId:kind dedupe set so a long session cannot leak memory unboundedly. */
+const MAX_TRACKED_AUDIO_KEYS = 500;
+
 class CombatAudio {
   private context: AudioContext | undefined;
   private readonly seen = new Set<string>();
@@ -149,6 +154,10 @@ class CombatAudio {
     const key = `${executionId}:${kind}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
+    if (this.seen.size > MAX_TRACKED_AUDIO_KEYS) {
+      const oldest = this.seen.values().next().value;
+      if (oldest !== undefined) this.seen.delete(oldest);
+    }
     try {
       this.unlock();
       if (this.context === undefined) return;
@@ -184,12 +193,11 @@ class TestScene extends Phaser.Scene {
   private activeAbility: 'slash' | 'powerStrike' | 'whirlwind' | 'ironSkin' | undefined;
   private pausedAt: number | undefined;
   private pausedDuration = 0;
+  /** One seed per run: identical command sequences must replay identically (GOAL.md §32). */
+  private readonly runSeed = seedFromString(crypto.randomUUID());
   private readonly controller = new LocalCombatController(
     { now: () => this.combatNow() },
-    {
-      nextInt: (minimum, maximum) => Phaser.Math.Between(minimum, maximum),
-      next: () => Math.random(),
-    },
+    createSeededRandom(this.runSeed),
     constrainDummyKnockback,
   );
   private readonly dummyVisuals = new Map<string, Phaser.GameObjects.Arc>();

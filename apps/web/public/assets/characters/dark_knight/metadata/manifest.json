@@ -5,11 +5,7 @@
     "width": 92,
     "height": 92
   },
-  "generatedDirections": [
-    "north",
-    "south",
-    "east"
-  ],
+  "generatedDirections": ["north", "south", "east"],
   "mirroredDirections": [
     {
       "direction": "left",

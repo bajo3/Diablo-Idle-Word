@@ -1,6 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { createGuardianCombatState } from '@brecha/shared';
+
+import { guardianCombatTuning } from './combat-controller';
 import type { GameHudSnapshot, GameRuntime, RuntimeConnection } from './runtime';
+
+/** Mirrors LocalCombatController.snapshot() before the runtime mounts and publishes a real one. */
+function initialHud(connection: RuntimeConnection): GameHudSnapshot {
+  const state = createGuardianCombatState(guardianCombatTuning);
+  return {
+    facing: 'down',
+    paused: false,
+    connection,
+    health: state.health,
+    maxHealth: state.maxHealth,
+    fury: state.fury,
+    maxFury: guardianCombatTuning.maxFury,
+    cooldownRemainingMs: { slash: 0, powerStrike: 0, whirlwind: 0, ironSkin: 0 },
+    ironSkinActive: false,
+  };
+}
 
 export type RuntimeLoader = () => Promise<{
   mountGameRuntime(host: HTMLElement, onHud: (snapshot: GameHudSnapshot) => void): GameRuntime;
@@ -44,17 +63,7 @@ export function GameIsland({
   const [checkpointPending, setCheckpointPending] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string>();
   const [showDamageNumbers, setShowDamageNumbers] = useState(true);
-  const [hud, setHud] = useState<GameHudSnapshot>({
-    facing: 'down',
-    paused: false,
-    connection,
-    health: 220,
-    maxHealth: 220,
-    fury: 0,
-    maxFury: 100,
-    cooldownRemainingMs: { slash: 0, powerStrike: 0, whirlwind: 0, ironSkin: 0 },
-    ironSkinActive: false,
-  });
+  const [hud, setHud] = useState<GameHudSnapshot>(() => initialHud(connection));
   connectionRef.current = connection;
   damageNumbersRef.current = showDamageNumbers;
   useEffect(() => {

@@ -243,6 +243,11 @@ export class LocalCombatController {
           ? targetWithinArc(origin, impact.facing, target, config.rangePx!, config.arcDegrees!)
           : targetWithinRadius(origin, target, config.radiusPx),
       )
+      .sort(
+        (left, right) =>
+          squaredDistance(origin, left.position) - squaredDistance(origin, right.position) ||
+          (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+      )
       .slice(0, config.maxTargets ?? Number.POSITIVE_INFINITY);
     const events: CombatEvent[] = [];
     let hit = false;
@@ -300,6 +305,12 @@ export class LocalCombatController {
       this.state = applySuccessfulHit(guardianCombatTuning, this.state, impact.ability, impact.at);
     return events;
   }
+}
+
+function squaredDistance(from: CombatVector, to: CombatVector): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  return dx * dx + dy * dy;
 }
 
 function knockbackDestination(
