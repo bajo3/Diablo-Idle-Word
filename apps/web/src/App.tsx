@@ -430,6 +430,7 @@ export function App() {
     return (
       <main className="game-fullscreen">
         <GameIsland
+          characterClass={selected.class}
           characterId={selected.id}
           connection={connection === 'connecting' ? 'degraded' : connection}
           onCheckpoint={async (intent) => {

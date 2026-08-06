@@ -35,6 +35,7 @@ import {
   type EnemySpawnAction,
   type EnemySpawnDirectorConfig,
   type EnemySpawnSafetyCheck,
+  type CharacterClassId,
 } from '@brecha/shared';
 
 import {
@@ -72,6 +73,7 @@ import {
   CAMERA_ZOOM,
   POTION,
   PROJECTILE_VISUAL_CHEST_LIFT_PX,
+  layeredCharacterForClass,
   layeredCharacterFromSearch,
 } from './presentation';
 import {
@@ -672,7 +674,10 @@ class TestScene extends Phaser.Scene {
   private autoBattle = false;
   private lastHudAt = -Infinity;
   private readonly suppressContextMenu = (event: Event) => event.preventDefault();
-  public constructor(private readonly onHud: (snapshot: GameHudSnapshot) => void) {
+  public constructor(
+    private readonly onHud: (snapshot: GameHudSnapshot) => void,
+    characterClass?: CharacterClassId,
+  ) {
     super('test');
     const search = typeof window === 'undefined' ? '' : window.location.search;
     this.stressEnabled = enemyStressEnabled(search, import.meta.env.MODE === 'development');
@@ -680,13 +685,12 @@ class TestScene extends Phaser.Scene {
       ? parseEnemyStressCount(search)
       : DEFAULT_ENEMY_STRESS_COUNT;
     this.forestWaveSeed = seedFromString(`${this.runSeed}:forest-waves`);
-    // Opt-in while the rig-generated art is still under review, so the shipped Guardian keeps its
-    // current appearance. Same shape as the enemy stress harness: a query flag the production
-    // bundle ignores.
-    this.layeredCharacter = layeredCharacterFromSearch(
-      search,
-      import.meta.env.MODE === 'development',
-    );
+    // The character's own class picks its rig art (Amazona -> hunter, every other class still the
+    // shipped Guardian). `?character=` remains as a development-only manual override for trying rig
+    // art that has no class wired to it yet.
+    this.layeredCharacter =
+      layeredCharacterForClass(characterClass) ??
+      layeredCharacterFromSearch(search, import.meta.env.MODE === 'development');
   }
   public create(): void {
     this.forestProgress = createForestProgressState(GAME_DATA.endlessForest);
@@ -2263,9 +2267,10 @@ function performanceNow(): number {
 export function mountGameRuntime(
   host: HTMLElement,
   onHud: (snapshot: GameHudSnapshot) => void,
+  characterClass?: CharacterClassId,
 ): GameRuntime {
   runtimes.get(host)?.destroy();
-  const scene = new TestScene(onHud);
+  const scene = new TestScene(onHud, characterClass);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: host,

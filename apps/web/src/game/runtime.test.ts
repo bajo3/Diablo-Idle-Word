@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   arcadeDebugEnabled,
   arcadeDebugOptIn,
+  layeredCharacterForClass,
   layeredCharacterFromSearch,
   BASE_CAMERA_ZOOM,
   CAMERA_FOLLOW_DEADZONE,
@@ -94,5 +95,17 @@ describe('layeredCharacterFromSearch', () => {
       );
     }
     expect(new Set(layers.map((layer) => layer?.id)).size).toBe(3);
+  });
+});
+
+describe('layeredCharacterForClass', () => {
+  it('gives the Amazona her rig art in every build, no query flag required', () => {
+    expect(layeredCharacterForClass('AMAZON')?.id).toBe('hunter');
+  });
+
+  it('keeps every other class, and no class at all, on the shipped Guardian', () => {
+    expect(layeredCharacterForClass('GUARDIAN')).toBeUndefined();
+    expect(layeredCharacterForClass('BARBARIAN')).toBeUndefined();
+    expect(layeredCharacterForClass(undefined)).toBeUndefined();
   });
 });

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { createGuardianCombatState, type ItemStatKey } from '@brecha/shared';
+import {
+  createGuardianCombatState,
+  type CharacterClassId,
+  type ItemStatKey,
+} from '@brecha/shared';
 import { GAME_DATA } from '@brecha/game-data';
 
 import { guardianCombatTuning } from './combat-controller';
@@ -54,7 +58,11 @@ function initialHud(connection: RuntimeConnection): GameHudSnapshot {
 }
 
 export type RuntimeLoader = () => Promise<{
-  mountGameRuntime(host: HTMLElement, onHud: (snapshot: GameHudSnapshot) => void): GameRuntime;
+  mountGameRuntime(
+    host: HTMLElement,
+    onHud: (snapshot: GameHudSnapshot) => void,
+    characterClass?: CharacterClassId,
+  ): GameRuntime;
 }>;
 
 function isRewardGrantedEvent(event: unknown): boolean {
@@ -70,6 +78,7 @@ const defaultRuntimeLoader: RuntimeLoader = () => import('./runtime');
 
 export function GameIsland({
   characterId,
+  characterClass,
   connection,
   onCheckpoint,
   loadRuntime = defaultRuntimeLoader,
@@ -81,6 +90,9 @@ export function GameIsland({
   localProgression = false,
 }: {
   characterId: string;
+  /** Picks the rig art (Amazona -> hunter, everything else the shipped Guardian). Undefined for
+   * previews that have no persisted character, which keeps the Guardian. */
+  characterClass?: CharacterClassId;
   connection: RuntimeConnection;
   onCheckpoint: (intent: {
     operationId: string;
@@ -174,7 +186,7 @@ export function GameIsland({
     let active = true;
     void loadRuntime().then(({ mountGameRuntime }) => {
       if (active && host.current !== null) {
-        const mounted = mountGameRuntime(host.current, setHud);
+        const mounted = mountGameRuntime(host.current, setHud, characterClass);
         runtime.current = mounted;
         setRuntimeReady(true);
         for (const event of pendingServerEvents.current) mounted.applyServerEvent?.(event);

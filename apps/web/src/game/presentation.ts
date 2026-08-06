@@ -1,3 +1,5 @@
+import type { CharacterClassId } from '@brecha/shared';
+
 import { hunter, type LayeredCharacter } from './pixellab-characters';
 
 import type { Direction4, LocalCharacterState } from './domain';
@@ -74,8 +76,9 @@ export function arcadeDebugOptIn(storage: Pick<Storage, 'getItem'> | undefined):
  * presentation layer — the runtime's own unit tests deliberately never import the scene, so a
  * gate that only exists there cannot be tested.
  *
- * Gated the same way the enemy stress harness is: the rig art is not approved yet, so a production
- * bundle must keep rendering the Guardian regardless of what the URL asks for.
+ * Gated the same way the enemy stress harness is: this is a manual override for trying rig art
+ * that has no class wired to it yet, so a production bundle must keep rendering the Guardian
+ * regardless of what the URL asks for. `layeredCharacterForClass` is the real, ungated path.
  */
 export function layeredCharacterFromSearch(
   search: string,
@@ -84,4 +87,17 @@ export function layeredCharacterFromSearch(
   if (!developmentMode) return undefined;
   const requested = new URLSearchParams(search).get('character');
   return requested === 'hunter' ? hunter : undefined;
+}
+
+/**
+ * Maps a character's chosen class to its layered rig art, in every build.
+ *
+ * Only Amazona has approved rig art so far (`hunter` — see `scripts/aseprite-gen/README.md`); every
+ * other class, and a character with no class on record yet, falls back to `undefined` so the caller
+ * keeps rendering the shipped Guardian. Extend this switch as more classes get their own rig.
+ */
+export function layeredCharacterForClass(
+  classId: CharacterClassId | undefined,
+): LayeredCharacter | undefined {
+  return classId === 'AMAZON' ? hunter : undefined;
 }
