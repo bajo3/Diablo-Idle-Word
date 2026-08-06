@@ -1,0 +1,209 @@
+{
+  "version": "art-manifest.1",
+  "entries": [
+    {
+      "id": "character.guardian.placeholder.shadow",
+      "type": "character_layer",
+      "path": "characters/guardian_placeholder_shadow.svg",
+      "source": "project-generated",
+      "author": "La Brecha Oscura",
+      "license": "CC0-1.0",
+      "status": "placeholder",
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      },
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "columns": 4,
+        "rows": 4,
+        "count": 16
+      },
+      "maxBytes": 100000
+    },
+    {
+      "id": "character.guardian.placeholder.body",
+      "type": "character_layer",
+      "path": "characters/guardian_placeholder_body.svg",
+      "source": "project-generated",
+      "author": "La Brecha Oscura",
+      "license": "CC0-1.0",
+      "status": "placeholder",
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      },
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "columns": 4,
+        "rows": 4,
+        "count": 16
+      },
+      "maxBytes": 100000
+    },
+    {
+      "id": "character.guardian.placeholder.armor",
+      "type": "character_layer",
+      "path": "characters/guardian_placeholder_armor.svg",
+      "source": "project-generated",
+      "author": "La Brecha Oscura",
+      "license": "CC0-1.0",
+      "status": "placeholder",
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      },
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "columns": 4,
+        "rows": 4,
+        "count": 16
+      },
+      "maxBytes": 100000
+    },
+    {
+      "id": "character.guardian.placeholder.weapon",
+      "type": "character_layer",
+      "path": "characters/guardian_placeholder_weapon.svg",
+      "source": "project-generated",
+      "author": "La Brecha Oscura",
+      "license": "CC0-1.0",
+      "status": "placeholder",
+      "dimensions": {
+        "width": 256,
+        "height": 256
+      },
+      "frame": {
+        "width": 64,
+        "height": 64,
+        "columns": 4,
+        "rows": 4,
+        "count": 16
+      },
+      "maxBytes": 100000
+    },
+    {
+      "id": "character.dark_knight",
+      "type": "character",
+      "path": "characters/dark_knight/metadata/manifest.json",
+      "source": "PixelLab MCP export",
+      "author": "PixelLab",
+      "license": "PixelLab ToS",
+      "status": "generated",
+      "maxBytes": 300000
+    },
+    {
+      "id": "character.ranger",
+      "type": "character",
+      "path": "characters/ranger/metadata/manifest.json",
+      "source": "PixelLab MCP export",
+      "author": "PixelLab",
+      "license": "PixelLab ToS",
+      "status": "generated",
+      "maxBytes": 300000
+    },
+    {
+      "id": "character.root_brute",
+      "type": "character",
+      "path": "characters/root_brute/metadata/manifest.json",
+      "source": "User-provided sprite upload",
+      "author": "Project owner",
+      "license": "User-provided permission; verify before distribution",
+      "status": "generated",
+      "maxBytes": 450000
+    },
+    {
+      "id": "background.village.square",
+      "type": "environment_background",
+      "path": "backgrounds/village-square.webp",
+      "source": "Codex image generation",
+      "author": "La Brecha Oscura",
+      "license": "Generated draft; verify distribution terms",
+      "status": "generated",
+      "maxBytes": 80000
+    },
+    {
+      "id": "background.blacksmith.forge",
+      "type": "environment_background",
+      "path": "backgrounds/blacksmith-forge.webp",
+      "source": "Codex image generation",
+      "author": "La Brecha Oscura",
+      "license": "Generated draft; verify distribution terms",
+      "status": "generated",
+      "maxBytes": 80000
+    },
+    {
+      "id": "background.portal.shrine",
+      "type": "environment_background",
+      "path": "backgrounds/portal-shrine.webp",
+      "source": "Codex image generation",
+      "author": "La Brecha Oscura",
+      "license": "Generated draft; verify distribution terms",
+      "status": "generated",
+      "maxBytes": 80000
+    },
+    {
+      "id": "background.explorer.outpost",
+      "type": "environment_background",
+      "path": "backgrounds/explorer-outpost.webp",
+      "source": "Codex image generation",
+      "author": "La Brecha Oscura",
+      "license": "Generated draft; verify distribution terms",
+      "status": "generated",
+      "maxBytes": 80000
+    },
+    {
+      "id": "background.expedition.corrupted.forest",
+      "type": "environment_background",
+      "path": "backgrounds/corrupted-forest.webp",
+      "source": "Codex image generation",
+      "author": "La Brecha Oscura",
+      "license": "Generated draft; verify distribution terms",
+      "status": "generated",
+      "maxBytes": 90000
+    },
+    {
+      "id": "background.expedition.sunken.ruins",
+      "type": "environment_background",
+      "path": "backgrounds/sunken-ruins.webp",
+      "source": "Codex image generation",
+      "author": "La Brecha Oscura",
+      "license": "Generated draft; verify distribution terms",
+      "status": "generated",
+      "maxBytes": 80000
+    },
+    {
+      "id": "character.hunter_body",
+      "type": "character",
+      "path": "characters/hunter/metadata/hunter_body.json",
+      "source": "Aseprite MCP rig (scripts/aseprite-gen)",
+      "author": "La Brecha Oscura",
+      "license": "CC0-1.0",
+      "status": "generated",
+      "maxBytes": 60000
+    },
+    {
+      "id": "character.hunter_armor",
+      "type": "character",
+      "path": "characters/hunter/metadata/hunter_armor.json",
+      "source": "Aseprite MCP rig (scripts/aseprite-gen)",
+      "author": "La Brecha Oscura",
+      "license": "CC0-1.0",
+      "status": "generated",
+      "maxBytes": 60000
+    },
+    {
+      "id": "character.hunter_weapon",
+      "type": "character",
+      "path": "characters/hunter/metadata/hunter_weapon.json",
+      "source": "Aseprite MCP rig (scripts/aseprite-gen)",
+      "author": "La Brecha Oscura",
+      "license": "CC0-1.0",
+      "status": "generated",
+      "maxBytes": 60000
+    }
+  ]
+}

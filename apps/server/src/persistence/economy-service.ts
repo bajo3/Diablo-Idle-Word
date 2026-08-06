@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { GAME_DATA } from '@brecha/game-data';
+import { applyExperience } from '@brecha/shared';
 import { Prisma } from '../generated/prisma/client.js';
 
 import {
@@ -107,7 +109,9 @@ export class EconomyService {
           async (transaction) => {
             const character = await transaction.character.findFirst({
               where: { id: value.characterId, userId: value.actorUserId },
-              include: { progress: { select: { experience: true } } },
+              include: {
+                progress: { select: { experience: true, level: true, attributePoints: true } },
+              },
             });
             if (character === null || character.progress === null)
               throw new CharacterNotFoundError();
@@ -127,7 +131,12 @@ export class EconomyService {
 
             const goldAfter = character.gold + value.goldDelta;
             const materialsAfter = character.materials + value.materialsDelta;
-            const experienceAfter = character.progress.experience + value.experienceDelta;
+            const progression = applyExperience(
+              character.progress,
+              value.experienceDelta,
+              GAME_DATA.progression,
+            );
+            const experienceAfter = progression.experience;
             if (goldAfter < 0n || materialsAfter < 0n || experienceAfter < 0n) {
               throw new InsufficientResourcesError();
             }
@@ -145,7 +154,9 @@ export class EconomyService {
             const updatedProgress = await transaction.characterProgress.update({
               where: { characterId: value.characterId },
               data: {
-                experience: { increment: value.experienceDelta },
+                experience: progression.experience,
+                level: progression.level,
+                attributePoints: progression.attributePoints,
                 revision: { increment: 1 },
               },
               select: { experience: true },

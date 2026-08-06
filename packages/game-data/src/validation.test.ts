@@ -180,4 +180,115 @@ describe('game data catalog', () => {
       'Sprite sheet has no matching asset manifest entry',
     );
   });
+
+  it('validates the endless forest is a monotonic 1-20 progression', () => {
+    const data = validateGameData(GAME_DATA);
+    expect(data.endlessForest.minimumLevel).toBe(1);
+    expect(data.endlessForest.maximumLevel).toBe(20);
+    expect(data.endlessForest.levels).toHaveLength(20);
+    for (let i = 0; i < data.endlessForest.levels.length; i += 1) {
+      expect(data.endlessForest.levels[i]!.level).toBe(i + 1);
+      if (i > 0) {
+        const prev = data.endlessForest.levels[i - 1]!;
+        const current = data.endlessForest.levels[i]!;
+        expect(current.enemyHealthMultiplier).toBeGreaterThanOrEqual(prev.enemyHealthMultiplier);
+        expect(current.enemyDamageMultiplier).toBeGreaterThanOrEqual(prev.enemyDamageMultiplier);
+        expect(current.waveSize).toBeGreaterThanOrEqual(prev.waveSize);
+      }
+    }
+    const nonMonotonic: unknown = {
+      ...GAME_DATA,
+      endlessForest: {
+        ...GAME_DATA.endlessForest,
+        levels: GAME_DATA.endlessForest.levels.map((level, index) =>
+          index === 10
+            ? { ...level, enemyHealthMultiplier: level.enemyHealthMultiplier - 1 }
+            : level,
+        ),
+      },
+    };
+    expect(() => validateGameData(nonMonotonic)).toThrow('Endless forest scaling is not monotonic');
+    const outOfSequence: unknown = {
+      ...GAME_DATA,
+      endlessForest: {
+        ...GAME_DATA.endlessForest,
+        levels: GAME_DATA.endlessForest.levels.map((level, index) =>
+          index === 5 ? { ...level, level: 99 } : level,
+        ),
+      },
+    };
+    expect(() => validateGameData(outOfSequence)).toThrow('out-of-sequence level number');
+  });
+
+  it('validates the M1 class registry and rejects a broken one', () => {
+    const data = validateGameData(GAME_DATA);
+    expect(data.classRegistry.classes).toContainEqual(
+      expect.objectContaining({ classId: 'guardian', resource: 'fury' }),
+    );
+    const missingGuardian: unknown = {
+      ...GAME_DATA,
+      classRegistry: { ...GAME_DATA.classRegistry, classes: [] },
+    };
+    // An empty `classes` array already fails ClassRegistrySchema's `.min(1)`, one layer before the
+    // "missing Guardian" cross-check below ever runs — both are real guards worth having.
+    expect(() => validateGameData(missingGuardian)).toThrow();
+    const orphanBranch: unknown = {
+      ...GAME_DATA,
+      classRegistry: {
+        ...GAME_DATA.classRegistry,
+        branches: [
+          {
+            branchId: 'branch.ghost.branch',
+            classId: 'ghost_class',
+            displayName: 'Fantasma',
+            nodeIds: [],
+          },
+        ],
+      },
+    };
+    expect(() => validateGameData(orphanBranch)).toThrow('Class registry is invalid');
+    const mismatchedAttributes: unknown = {
+      ...GAME_DATA,
+      classRegistry: {
+        ...GAME_DATA.classRegistry,
+        classes: [
+          {
+            ...GAME_DATA.classRegistry.classes[0]!,
+            // Same length as the real attribute set (schema requires exactly 4) but missing
+            // "vitality" and duplicating "strength", so it fails the *semantic* cross-check below
+            // rather than the Zod shape check.
+            attributeIds: ['strength', 'strength', 'dexterity', 'intelligence'],
+          },
+        ],
+      },
+    };
+    expect(() => validateGameData(mismatchedAttributes)).toThrow(
+      'Guardian class registry entry has mismatched attribute references',
+    );
+  });
+
+  it('ships the Step 11 MVP content budget and a boss legendary entry', () => {
+    const data = validateGameData(GAME_DATA);
+    expect(data.itemDefinitions.filter((item) => item.type.startsWith('weapon'))).toHaveLength(10);
+    expect(
+      data.itemDefinitions.filter((item) =>
+        ['helmet', 'chest', 'gloves', 'boots'].includes(item.type),
+      ),
+    ).toHaveLength(10);
+    expect(
+      data.itemDefinitions.filter((item) => ['amulet', 'ring'].includes(item.type)),
+    ).toHaveLength(5);
+    expect(data.affixes).toHaveLength(12);
+    expect(
+      data.itemDefinitions.some(
+        (item) => item.id === 'item.weapon.corrupted_guardian' && item.itemPowerRange[0] >= 90,
+      ),
+    ).toBe(true);
+    expect(
+      data.lootTables[0]?.entries.some(
+        (entry) =>
+          entry.definitionId === 'item.weapon.corrupted_guardian' && entry.dropChance < 0.05,
+      ),
+    ).toBe(true);
+  });
 });

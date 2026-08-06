@@ -1,0 +1,37 @@
+# Single-origin production image: one service that serves the built frontend, the /api routes and
+# the /ws gameplay socket from the same host. That is deliberate — a split web/API deployment puts
+# the session cookie in third-party territory (SameSite=None), which browsers increasingly refuse
+# and which fails as a silent "login worked but you are still logged out".
+FROM node:24-bookworm-slim AS build
+
+ENV COREPACK_HOME=/usr/local/share/corepack
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/* \
+  && corepack enable \
+  && corepack prepare pnpm@11.9.0 --activate
+
+COPY . .
+
+# A stray developer .env would otherwise be baked into the bundle — the repo root one points
+# VITE_API_URL at localhost:3001, which in production is an unreachable host and a broken login.
+RUN rm -f .env .env.* apps/web/.env apps/web/.env.*
+
+# Empty on purpose: the frontend calls its own origin, so no build-time API host is baked in and
+# the same image works on any domain without a rebuild.
+ENV VITE_API_URL=""
+
+RUN pnpm install --frozen-lockfile \
+  && DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build pnpm db:generate \
+  && pnpm --filter @brecha/shared --filter @brecha/game-data build \
+  && pnpm --filter @brecha/server build \
+  && pnpm --filter @brecha/web build
+
+ENV NODE_ENV=production
+ENV SERVE_WEB=1
+EXPOSE 3001
+
+# Migrations run before boot so a fresh database is usable on first deploy.
+CMD ["sh", "-c", "pnpm db:migrate:deploy && pnpm --filter @brecha/server start"]

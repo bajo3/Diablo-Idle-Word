@@ -1,9 +1,9 @@
 # La Brecha Oscura
 
-Base técnica del ARPG web cooperativo definido en [GOAL.md](GOAL.md). El repositorio se
-cuenta con la base de los Pasos 1 a 3: cliente/servidor mínimos, contratos compartidos, datos
-iniciales y PostgreSQL autoritativo con Prisma. Phaser, autenticación y sistemas de juego
-pertenecen a pasos posteriores.
+Base técnica del ARPG web cooperativo definido en [GOAL.md](GOAL.md). El repositorio contiene el
+vertical slice autoritativo de cliente/servidor, PostgreSQL/Prisma, combate, party, inventario, loot,
+progresión, modo ausente, pueblo, arte/audio y un entorno de staging reproducible. El checklist vigente
+y el orden de trabajo están en [GOAL.md](GOAL.md).
 
 ## Requisitos
 
@@ -43,24 +43,48 @@ El servidor usa PostgreSQL para identidad y Guardianes. `SERVER_STATUS=maintenan
 
 ## Comandos
 
-| Comando                  | Función                                               |
-| ------------------------ | ----------------------------------------------------- |
-| `pnpm dev`               | Inicia cliente y servidor en paralelo                 |
-| `pnpm build`             | Compila los workspaces                                |
-| `pnpm lint`              | Ejecuta ESLint                                        |
-| `pnpm typecheck`         | Verifica TypeScript estricto                          |
-| `pnpm test`              | Ejecuta Vitest                                        |
-| `pnpm format`            | Aplica Prettier                                       |
-| `pnpm format:check`      | Comprueba formato                                     |
-| `pnpm db:up`             | Inicia PostgreSQL                                     |
-| `pnpm db:status`         | Muestra el estado de PostgreSQL                       |
-| `pnpm db:stop`           | Detiene PostgreSQL sin eliminar sus datos             |
-| `pnpm db:generate`       | Genera el cliente Prisma ESM ignorado por Git         |
-| `pnpm db:migrate:deploy` | Aplica migraciones SQL versionadas                    |
-| `pnpm db:seed`           | Crea el agregado local de prueba de forma idempotente |
-| `pnpm test:integration`  | Ejecuta persistencia contra PostgreSQL real efímero   |
-| `pnpm db:backup`         | Crea dump con SHA-256 de la DB local de desarrollo    |
-| `pnpm db:restore:smoke`  | Restaura un backup en DB efímera y verifica Prisma    |
+| Comando                          | Función                                                   |
+| -------------------------------- | --------------------------------------------------------- |
+| `pnpm dev`                       | Inicia cliente y servidor en paralelo                     |
+| `pnpm build`                     | Compila los workspaces                                    |
+| `pnpm lint`                      | Ejecuta ESLint                                            |
+| `pnpm typecheck`                 | Verifica TypeScript estricto                              |
+| `pnpm test`                      | Ejecuta Vitest                                            |
+| `pnpm format`                    | Aplica Prettier                                           |
+| `pnpm format:check`              | Comprueba formato                                         |
+| `pnpm db:up`                     | Inicia PostgreSQL                                         |
+| `pnpm db:status`                 | Muestra el estado de PostgreSQL                           |
+| `pnpm db:stop`                   | Detiene PostgreSQL sin eliminar sus datos                 |
+| `pnpm db:generate`               | Genera el cliente Prisma ESM ignorado por Git             |
+| `pnpm db:migrate:deploy`         | Aplica migraciones SQL versionadas                        |
+| `pnpm db:seed`                   | Crea el agregado local de prueba de forma idempotente     |
+| `pnpm test:integration`          | Ejecuta persistencia contra PostgreSQL real efímero       |
+| `pnpm db:backup`                 | Crea dump con SHA-256 de la DB local de desarrollo        |
+| `pnpm db:restore:smoke`          | Restaura un backup en DB efímera y verifica Prisma        |
+| `pnpm staging:smoke`             | Comprueba HTML, favicon, API health y CORS de staging     |
+| `pnpm staging:multiplayer:smoke` | Verifica dos sesiones autenticadas y WebSocket compartido |
+| `pnpm staging:env:check`         | Rechaza placeholders y valida CORS/TLS del entorno        |
+| `pnpm staging:backup`            | Crea un dump custom de la base de staging con SHA-256     |
+| `pnpm staging:restore:smoke`     | Verifica checksum y restaura staging en DB efímera        |
+
+## Staging
+
+El stack aislado está en `docker-compose.staging.yml`. No contiene secretos ni despliega por sí solo:
+
+```powershell
+Copy-Item deploy/staging.env.example deploy/staging.env
+# Editar el archivo con secretos/URLs del entorno
+docker compose --env-file deploy/staging.env -f docker-compose.staging.yml up -d --build
+$env:STAGING_WEB_URL='http://127.0.0.1:8080'
+$env:STAGING_API_HEALTH_URL='http://127.0.0.1:3002'
+$env:STAGING_WEB_ORIGIN='http://127.0.0.1:8080'
+pnpm staging:smoke
+```
+
+TLS remoto, rollback y checklist están documentados en [docs/deployment/staging.md](docs/deployment/staging.md),
+[docs/deployment/rollback.md](docs/deployment/rollback.md) y
+[docs/deployment/release-checklist.md](docs/deployment/release-checklist.md). El workflow CI reproducible
+vive en `.github/workflows/ci.yml`.
 
 ## Estructura
 
@@ -86,5 +110,5 @@ logout: la sesión queda sujeta a su vencimiento o revocación explícita y el p
 
 ## Estado
 
-Consultar el checklist y el registro de progreso en [GOAL.md](GOAL.md). No avanzar a un paso
-posterior sin completar y verificar el actual.
+Consultar el checklist y el registro de progreso en [GOAL.md](GOAL.md). Paso 20 prepara staging y CI;
+el despliegue remoto real requiere dominio, proveedor y secretos del propietario.

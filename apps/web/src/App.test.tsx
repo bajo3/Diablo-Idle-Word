@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   selectCharacter: vi.fn(),
   session: vi.fn(),
   status: vi.fn(),
+  town: vi.fn(),
   updateProfile: vi.fn(),
   saveCheckpoint: vi.fn(),
 }));
@@ -117,6 +118,49 @@ describe('Paso 5 session lifecycle', () => {
     expect(screen.getByText('Seleccionado')).toBeTruthy();
   });
 
+  it('returns to Pueblo after selecting a Guardian', async () => {
+    window.history.replaceState({}, '', '/guardianes');
+    api.session.mockResolvedValue({ profile: ayla });
+    api.characters
+      .mockResolvedValueOnce({ characters: [{ ...muro, selected: false }] })
+      .mockResolvedValueOnce({ characters: [{ ...muro, selected: true }] });
+    api.selectCharacter.mockResolvedValue(undefined);
+    api.town.mockResolvedValue({
+      town: {
+        characterName: 'Muro',
+        level: 1,
+        gold: 1240,
+        materials: 45,
+        tutorial: { status: 'COMPLETED' },
+      },
+    });
+
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Ayla' });
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/pueblo'));
+    expect(screen.getByText('PUEBLO · Muro')).toBeTruthy();
+  });
+
+  it('explains when registration email already exists', async () => {
+    api.register.mockRejectedValue(new ApiError('http', 409, 'conflict'));
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Entrá a la brecha' });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+    fireEvent.change(screen.getByLabelText('Nombre visible'), { target: { value: 'Bajo31' } });
+    fireEvent.change(screen.getByLabelText('Correo'), {
+      target: { value: 'felipelentini98@hotmail.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'abc123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(
+      await screen.findByText('Ya existe una cuenta con ese correo. Elegí “Ya tengo cuenta”.'),
+    ).toBeTruthy();
+  });
+
   it('logs out explicitly without relying on browser unload', async () => {
     authenticatedSession();
     api.logout.mockResolvedValue(undefined);
@@ -168,7 +212,7 @@ describe('Paso 5 session lifecycle', () => {
   });
 
   it('does not mount the local game route for a selected unavailable Guardian', async () => {
-    window.history.replaceState({}, '', '/partida');
+    window.history.replaceState({}, '', '/mundo');
     api.session.mockResolvedValue({ profile: ayla });
     api.characters.mockResolvedValue({
       characters: [{ ...muro, availability: 'AWAY_FARMING' }],
@@ -179,6 +223,28 @@ describe('Paso 5 session lifecycle', () => {
     expect(
       await screen.findByText('Seleccioná un Guardián disponible antes de entrar.'),
     ).toBeTruthy();
-    expect(screen.queryByLabelText('Partida local')).toBeNull();
+    expect(screen.queryByLabelText('Mundo')).toBeNull();
+  });
+
+  it('keeps the Personaje route behind authentication for anonymous visitors', async () => {
+    window.history.replaceState({}, '', '/personaje');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Entrá a la brecha' })).toBeTruthy();
+    expect(screen.queryByText('Seleccioná un personaje para abrir la hoja.')).toBeNull();
+  });
+
+  it('guides an authenticated session without a selection to Guardianes before opening Personaje', async () => {
+    window.history.replaceState({}, '', '/personaje');
+    api.session.mockResolvedValue({ profile: ayla });
+    api.characters.mockResolvedValue({ characters: [{ ...muro, selected: false }] });
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Seleccioná un Guardián' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ir a Guardianes' }));
+    expect(await screen.findByRole('heading', { name: 'Ayla' })).toBeTruthy();
+    expect(screen.getByText('Muro')).toBeTruthy();
   });
 });

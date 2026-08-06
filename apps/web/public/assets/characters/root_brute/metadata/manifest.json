@@ -1,0 +1,102 @@
+{
+  "id": "root_brute",
+  "provenance": {
+    "source": "User-provided sprite upload",
+    "author": "Project owner",
+    "license": "User-provided permission; verify before distribution",
+    "addedAt": "2026-07-31",
+    "status": "generated"
+  },
+  "displayName": "Bruto de raíces",
+  "frameSize": {
+    "width": 248,
+    "height": 248
+  },
+  "generatedDirections": ["south", "north", "east"],
+  "mirroredDirections": [
+    {
+      "direction": "left",
+      "mirrorsFrom": "east"
+    }
+  ],
+  "animations": {
+    "basic_attack": {
+      "id": "root_brute_basic_attack",
+      "state": "basic_attack",
+      "frameRate": 12,
+      "repeat": 0,
+      "frames": {
+        "south": {
+          "sheetPath": "characters/root_brute/full/root_brute_basic_attack_south.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 6
+        },
+        "north": {
+          "sheetPath": "characters/root_brute/full/root_brute_basic_attack_north.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 6
+        },
+        "east": {
+          "sheetPath": "characters/root_brute/full/root_brute_basic_attack_east.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 6
+        }
+      }
+    },
+    "walk": {
+      "id": "root_brute_walk",
+      "state": "walk",
+      "frameRate": 10,
+      "repeat": -1,
+      "frames": {
+        "south": {
+          "sheetPath": "characters/root_brute/full/root_brute_walk_south.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 6
+        },
+        "north": {
+          "sheetPath": "characters/root_brute/full/root_brute_walk_north.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 6
+        },
+        "east": {
+          "sheetPath": "characters/root_brute/full/root_brute_walk_east.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 6
+        }
+      }
+    },
+    "idle": {
+      "id": "root_brute_idle",
+      "state": "idle",
+      "frameRate": 6,
+      "repeat": -1,
+      "frames": {
+        "south": {
+          "sheetPath": "characters/root_brute/full/root_brute_idle_south.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 1
+        },
+        "east": {
+          "sheetPath": "characters/root_brute/full/root_brute_idle_east.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 1
+        },
+        "north": {
+          "sheetPath": "characters/root_brute/full/root_brute_idle_north.png",
+          "frameWidth": 248,
+          "frameHeight": 248,
+          "frameCount": 1
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,462 @@
+import type {
+  AffixDefinition,
+  EquipmentSlot,
+  ItemDefinition,
+  ItemStatRange,
+  ItemType,
+} from '@brecha/shared';
+
 import type { GameDataCatalog } from './schemas.js';
 
-export const GAME_DATA_VERSION = '2026.07.30.2' as const;
-export const BALANCE_VERSION = '2026.07.30.2' as const;
+export const GAME_DATA_VERSION = '2026.08.04.4' as const;
+export const BALANCE_VERSION = '2026.08.04.4' as const;
+
+const CHARACTER_PROGRESSION: GameDataCatalog['progression'] = {
+  formulaVersion: 'character-progression.1',
+  minimumLevel: 1,
+  maximumLevel: 10,
+  // Cumulative XP thresholds. Level 1 starts at zero; the last threshold is the level 10 cap.
+  xpToReachLevel: [0, 100, 250, 450, 700, 1_000, 1_350, 1_750, 2_200, 2_700],
+  attributePointsPerLevel: 3,
+  resetCostPerLevel: 100,
+};
+
+/**
+ * Builds the 20 levels of the endless Corrupted Forest with a PROVISIONAL monotonic scaling
+ * (Paso 9): each level is strictly harder than the one before — enemy HP grows 25% per level,
+ * enemy damage 10%, wave size by one, and the XP needed to advance grows so higher levels take
+ * longer. Validation enforces monotonicity, so editing these constants can never accidentally
+ * make a later level easier. The last level's `xpToAdvance` is unused (the player caps there).
+ */
+function buildEndlessForestLevels() {
+  return Array.from({ length: 20 }, (_, index) => {
+    const level = index + 1;
+    const step = level - 1;
+    return {
+      level,
+      enemyHealthMultiplier: 1 + step * 0.25,
+      enemyDamageMultiplier: 1 + step * 0.1,
+      waveSize: 3 + step,
+      xpToAdvance: Math.round(100 * level * (1 + step * 0.15)),
+    };
+  });
+}
+
+function itemDefinition(
+  id: string,
+  displayName: string,
+  type: ItemType,
+  slot: EquipmentSlot,
+  itemPowerRange: readonly [number, number],
+  baseStats: readonly ItemStatRange[],
+): ItemDefinition {
+  return {
+    id,
+    displayName,
+    type,
+    slot,
+    itemPowerRange: [itemPowerRange[0], itemPowerRange[1]],
+    baseStats: baseStats.map((stat) => ({ ...stat })),
+    tuningStatus: 'PROVISIONAL',
+  };
+}
+
+const ITEM_DEFINITIONS: ItemDefinition[] = [
+  itemDefinition(
+    'item.weapon.iron_sword',
+    'Espada de hierro',
+    'weapon_one_hand',
+    'main_hand',
+    [8, 14],
+    [
+      { stat: 'physical_damage', min: 8, max: 12 },
+      { stat: 'strength', min: 1, max: 3 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.ash_saber',
+    'Sable de ceniza',
+    'weapon_one_hand',
+    'main_hand',
+    [12, 20],
+    [
+      { stat: 'physical_damage', min: 12, max: 18 },
+      { stat: 'critical_chance', min: 1, max: 3 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.moss_blade',
+    'Hoja musgosa',
+    'weapon_one_hand',
+    'main_hand',
+    [16, 25],
+    [
+      { stat: 'physical_damage', min: 16, max: 22 },
+      { stat: 'vitality', min: 2, max: 5 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.breach_falchion',
+    'Falchión de la Brecha',
+    'weapon_one_hand',
+    'main_hand',
+    [22, 34],
+    [
+      { stat: 'physical_damage', min: 22, max: 30 },
+      { stat: 'strength', min: 4, max: 8 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.dusk_axe',
+    'Hacha del ocaso',
+    'weapon_two_hand',
+    'main_hand',
+    [18, 30],
+    [
+      { stat: 'physical_damage', min: 20, max: 32 },
+      { stat: 'strength', min: 4, max: 7 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.root_hammer',
+    'Martillo de raíces',
+    'weapon_two_hand',
+    'main_hand',
+    [26, 40],
+    [
+      { stat: 'physical_damage', min: 28, max: 42 },
+      { stat: 'vitality', min: 5, max: 9 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.corrupted_greatsword',
+    'Mandoble corrupto',
+    'weapon_two_hand',
+    'main_hand',
+    [34, 52],
+    [
+      { stat: 'physical_damage', min: 36, max: 56 },
+      { stat: 'strength', min: 7, max: 12 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.guardian_halberd',
+    'Alabarda del Guardián',
+    'weapon_two_hand',
+    'main_hand',
+    [44, 68],
+    [
+      { stat: 'physical_damage', min: 48, max: 72 },
+      { stat: 'armor', min: 6, max: 12 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.briar_spear',
+    'Lanza de zarzas',
+    'weapon_two_hand',
+    'main_hand',
+    [50, 76],
+    [
+      { stat: 'physical_damage', min: 54, max: 80 },
+      { stat: 'critical_chance', min: 3, max: 6 },
+    ],
+  ),
+  itemDefinition(
+    'item.weapon.corrupted_guardian',
+    'Filo del Guardián Corrupto',
+    'weapon_two_hand',
+    'main_hand',
+    [90, 120],
+    [
+      { stat: 'physical_damage', min: 100, max: 135 },
+      { stat: 'strength', min: 14, max: 22 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.iron_helm',
+    'Yelmo de hierro',
+    'helmet',
+    'helmet',
+    [8, 14],
+    [
+      { stat: 'armor', min: 8, max: 14 },
+      { stat: 'vitality', min: 1, max: 3 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.moss_crown',
+    'Corona de musgo',
+    'helmet',
+    'helmet',
+    [16, 24],
+    [
+      { stat: 'armor', min: 16, max: 24 },
+      { stat: 'max_health', min: 8, max: 16 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.corrupted_helm',
+    'Yelmo de corrupción',
+    'helmet',
+    'helmet',
+    [30, 44],
+    [
+      { stat: 'armor', min: 30, max: 46 },
+      { stat: 'strength', min: 4, max: 8 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.leather_cuirass',
+    'Peto de cuero',
+    'chest',
+    'chest',
+    [10, 18],
+    [
+      { stat: 'armor', min: 12, max: 20 },
+      { stat: 'vitality', min: 2, max: 4 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.forest_cuirass',
+    'Peto del bosque',
+    'chest',
+    'chest',
+    [22, 34],
+    [
+      { stat: 'armor', min: 24, max: 38 },
+      { stat: 'vitality', min: 5, max: 9 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.root_plate',
+    'Placas de raíz',
+    'chest',
+    'chest',
+    [38, 56],
+    [
+      { stat: 'armor', min: 42, max: 62 },
+      { stat: 'max_health', min: 16, max: 28 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.iron_gloves',
+    'Guanteletes de hierro',
+    'gloves',
+    'gloves',
+    [7, 13],
+    [
+      { stat: 'armor', min: 6, max: 11 },
+      { stat: 'strength', min: 1, max: 3 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.briar_grips',
+    'Garras de zarza',
+    'gloves',
+    'gloves',
+    [18, 28],
+    [
+      { stat: 'armor', min: 14, max: 24 },
+      { stat: 'attack_speed_minor', min: 2, max: 5 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.traveler_boots',
+    'Botas del viajero',
+    'boots',
+    'boots',
+    [8, 15],
+    [
+      { stat: 'armor', min: 7, max: 12 },
+      { stat: 'dexterity', min: 1, max: 3 },
+    ],
+  ),
+  itemDefinition(
+    'item.armor.corrupted_greaves',
+    'Grebas corruptas',
+    'boots',
+    'boots',
+    [22, 36],
+    [
+      { stat: 'armor', min: 20, max: 34 },
+      { stat: 'max_health', min: 10, max: 18 },
+    ],
+  ),
+  itemDefinition(
+    'item.accessory.forest_amulet',
+    'Amuleto del bosque',
+    'amulet',
+    'amulet',
+    [14, 24],
+    [
+      { stat: 'vitality', min: 3, max: 7 },
+      { stat: 'max_health', min: 10, max: 20 },
+    ],
+  ),
+  itemDefinition(
+    'item.accessory.breach_amulet',
+    'Amuleto de la Brecha',
+    'amulet',
+    'amulet',
+    [28, 44],
+    [
+      { stat: 'critical_chance', min: 2, max: 5 },
+      { stat: 'physical_damage', min: 8, max: 16 },
+    ],
+  ),
+  itemDefinition(
+    'item.accessory.ash_ring',
+    'Anillo de ceniza',
+    'ring',
+    'ring_1',
+    [10, 18],
+    [
+      { stat: 'strength', min: 2, max: 5 },
+      { stat: 'physical_damage', min: 4, max: 8 },
+    ],
+  ),
+  itemDefinition(
+    'item.accessory.moss_ring',
+    'Anillo musgoso',
+    'ring',
+    'ring_1',
+    [15, 25],
+    [
+      { stat: 'vitality', min: 3, max: 6 },
+      { stat: 'armor', min: 5, max: 9 },
+    ],
+  ),
+  itemDefinition(
+    'item.accessory.corruption_ring',
+    'Anillo de corrupción',
+    'ring',
+    'ring_1',
+    [26, 42],
+    [
+      { stat: 'intelligence', min: 5, max: 10 },
+      { stat: 'critical_chance', min: 2, max: 5 },
+    ],
+  ),
+];
+
+const AFFIXES: AffixDefinition[] = [
+  {
+    id: 'affix.power',
+    displayName: 'Fuerza',
+    family: 'offense',
+    stat: 'strength',
+    min: 2,
+    max: 8,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.precision',
+    displayName: 'Precisión',
+    family: 'offense',
+    stat: 'critical_chance',
+    min: 1,
+    max: 4,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.edge',
+    displayName: 'Filo',
+    family: 'offense',
+    stat: 'physical_damage',
+    min: 4,
+    max: 14,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.guard',
+    displayName: 'Guardia',
+    family: 'defense',
+    stat: 'armor',
+    min: 5,
+    max: 18,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.vigor',
+    displayName: 'Vigor',
+    family: 'defense',
+    stat: 'vitality',
+    min: 2,
+    max: 9,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.fortitude',
+    displayName: 'Fortaleza',
+    family: 'defense',
+    stat: 'max_health',
+    min: 10,
+    max: 30,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.haste',
+    displayName: 'Celeridad',
+    family: 'utility',
+    stat: 'attack_speed_minor',
+    min: 1,
+    max: 4,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.agility',
+    displayName: 'Agilidad',
+    family: 'utility',
+    stat: 'dexterity',
+    min: 2,
+    max: 8,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.focus',
+    displayName: 'Enfoque',
+    family: 'utility',
+    stat: 'intelligence',
+    min: 2,
+    max: 8,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.void',
+    displayName: 'Vacío',
+    family: 'corruption',
+    stat: 'physical_damage',
+    min: 8,
+    max: 20,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.dark_skin',
+    displayName: 'Piel oscura',
+    family: 'corruption',
+    stat: 'armor',
+    min: 8,
+    max: 24,
+    tuningStatus: 'PROVISIONAL',
+  },
+  {
+    id: 'affix.breach',
+    displayName: 'Brecha',
+    family: 'corruption',
+    stat: 'max_health',
+    min: 15,
+    max: 40,
+    tuningStatus: 'PROVISIONAL',
+  },
+];
+
+const ENEMY_LOOT_ENTRIES = ITEM_DEFINITIONS.map((definition) => ({
+  definitionId: definition.id,
+  weight: definition.id === 'item.weapon.corrupted_guardian' ? 1 : 10,
+  dropChance: definition.id === 'item.weapon.corrupted_guardian' ? 0.01 : 0.35,
+  minimumLevel: 1,
+  maximumLevel: 20,
+}));
 
 /** Data only: formulas and numerical combat tuning remain deliberately TBD in Step 2. */
 export const GAME_DATA: GameDataCatalog = {
@@ -22,8 +477,13 @@ export const GAME_DATA: GameDataCatalog = {
       healthPerAdditionalPlayer: 0.65,
       damagePerAdditionalPlayer: 0.15,
     },
+    difficulty: {
+      normal: { enemyHealthMultiplier: 1, enemyDamageMultiplier: 1 },
+      veteran: { enemyHealthMultiplier: 1.25, enemyDamageMultiplier: 1.15 },
+    },
     visual: { standardFrameSize: 64, largeFrameSize: 128 },
   },
+  progression: CHARACTER_PROGRESSION,
   guardianCombat: {
     combatFormulaVersion: 'guardian-combat.1',
     tuningStatus: 'PROVISIONAL',
@@ -67,7 +527,6 @@ export const GAME_DATA: GameDataCatalog = {
         maxTargets: 3,
         impactMs: 400,
         recoveryMs: 800,
-        knockbackPx: 128,
       },
       {
         id: 'ability.guardian.whirlwind',
@@ -149,15 +608,17 @@ export const GAME_DATA: GameDataCatalog = {
       description: 'Ataque frontal corto que genera Furia.',
       animationId: 'guardian.attack_basic.down',
       mechanics: ['short_frontal_targeting', 'nearby_multi_target', 'generates_fury'],
+      unlockLevel: 1,
       tuningStatus: 'TBD',
     },
     {
       id: 'ability.guardian.power_strike',
       kind: 'active',
       displayName: 'Golpe poderoso',
-      description: 'Ataque lento que empuja y consume Furia.',
+      description: 'Ataque lento de alto daño que consume Furia.',
       animationId: 'guardian.skill_power_strike.down',
-      mechanics: ['slow_attack', 'high_damage', 'knockback', 'consumes_fury'],
+      mechanics: ['slow_attack', 'high_damage', 'consumes_fury'],
+      unlockLevel: 2,
       tuningStatus: 'TBD',
     },
     {
@@ -167,6 +628,7 @@ export const GAME_DATA: GameDataCatalog = {
       description: 'Daño alrededor del personaje con movimiento reducido.',
       animationId: 'guardian.skill_whirlwind.down',
       mechanics: ['self_area_damage', 'consumes_fury', 'brief_duration', 'reduced_movement'],
+      unlockLevel: 4,
       tuningStatus: 'TBD',
     },
     {
@@ -176,6 +638,7 @@ export const GAME_DATA: GameDataCatalog = {
       description: 'Reduce daño recibido sin otorgar invulnerabilidad.',
       animationId: 'guardian.skill_iron_skin.down',
       mechanics: ['temporary_damage_reduction', 'not_invulnerable', 'high_cooldown'],
+      unlockLevel: 6,
       tuningStatus: 'TBD',
     },
     {
@@ -185,6 +648,7 @@ export const GAME_DATA: GameDataCatalog = {
       description: 'Recupera vida limitada después de derrotar enemigos.',
       animationId: 'guardian.idle.down',
       mechanics: ['heal_on_kill', 'healing_capped'],
+      unlockLevel: 8,
       tuningStatus: 'TBD',
     },
   ],
@@ -214,6 +678,26 @@ export const GAME_DATA: GameDataCatalog = {
       tuningStatus: 'TBD',
     },
   ],
+  itemDefinitions: ITEM_DEFINITIONS,
+  affixes: AFFIXES,
+  lootTables: [
+    {
+      id: 'loot.corrupted_forest.enemy',
+      source: 'enemy_defeat',
+      tuningStatus: 'PROVISIONAL',
+      entries: ENEMY_LOOT_ENTRIES,
+    },
+  ],
+  itemGeneration: {
+    generatorVersion: 'items.mvp.1',
+    rarityWeights: [
+      { rarity: 'common', weight: 80 },
+      { rarity: 'magic', weight: 15 },
+      { rarity: 'rare', weight: 4 },
+      { rarity: 'legendary', weight: 1 },
+    ],
+    affixCountByRarity: { common: 0, magic: 1, rare: 2, legendary: 1 },
+  },
   enemies: [
     {
       id: 'corrupted_minion',
@@ -235,7 +719,7 @@ export const GAME_DATA: GameDataCatalog = {
     {
       id: 'possessed_archer',
       displayName: 'Arquero poseído',
-      behaviors: ['ranged', 'keep_distance', 'reposition'],
+      behaviors: ['ranged', 'reposition'],
       aiStates: [
         'idle',
         'patrol',
@@ -308,10 +792,16 @@ export const GAME_DATA: GameDataCatalog = {
       maxHealth: 40,
       armor: 5,
       moveSpeedPxPerSec: 90,
+      separationRadiusPx: 28,
       detectRadiusPx: 220,
       loseTargetRadiusPx: 320,
       leashRadiusPx: 420,
       attack: {
+        weaponDamage: [6, 8],
+        power: 2,
+        level: 1,
+        criticalChance: 0.02,
+        criticalMultiplier: 1.5,
         windupMs: 400,
         impactMs: 500,
         recoveryMs: 400,
@@ -322,6 +812,8 @@ export const GAME_DATA: GameDataCatalog = {
       },
       telegraphMs: 300,
       xpReward: 10,
+      goldReward: 5,
+      materialsReward: 1,
       animationIds: [
         'enemy.corrupted_minion.idle.down',
         'enemy.corrupted_minion.moving.down',
@@ -335,10 +827,16 @@ export const GAME_DATA: GameDataCatalog = {
       maxHealth: 30,
       armor: 2,
       moveSpeedPxPerSec: 80,
+      separationRadiusPx: 28,
       detectRadiusPx: 280,
       loseTargetRadiusPx: 400,
       leashRadiusPx: 500,
       attack: {
+        weaponDamage: [5, 7],
+        power: 2,
+        level: 1,
+        criticalChance: 0.04,
+        criticalMultiplier: 1.5,
         windupMs: 600,
         impactMs: 700,
         recoveryMs: 500,
@@ -349,6 +847,8 @@ export const GAME_DATA: GameDataCatalog = {
       },
       telegraphMs: 500,
       xpReward: 14,
+      goldReward: 7,
+      materialsReward: 1,
       animationIds: [
         'enemy.possessed_archer.idle.down',
         'enemy.possessed_archer.moving.down',
@@ -362,10 +862,16 @@ export const GAME_DATA: GameDataCatalog = {
       maxHealth: 35,
       armor: 3,
       moveSpeedPxPerSec: 70,
+      separationRadiusPx: 30,
       detectRadiusPx: 260,
       loseTargetRadiusPx: 380,
       leashRadiusPx: 480,
       attack: {
+        weaponDamage: [4, 6],
+        power: 3,
+        level: 1,
+        criticalChance: 0.03,
+        criticalMultiplier: 1.5,
         windupMs: 700,
         impactMs: 800,
         recoveryMs: 600,
@@ -376,6 +882,8 @@ export const GAME_DATA: GameDataCatalog = {
       },
       telegraphMs: 600,
       xpReward: 16,
+      goldReward: 8,
+      materialsReward: 2,
       animationIds: [
         'enemy.dark_shaman.idle.down',
         'enemy.dark_shaman.moving.down',
@@ -389,10 +897,16 @@ export const GAME_DATA: GameDataCatalog = {
       maxHealth: 90,
       armor: 12,
       moveSpeedPxPerSec: 65,
+      separationRadiusPx: 34,
       detectRadiusPx: 200,
       loseTargetRadiusPx: 300,
       leashRadiusPx: 400,
       attack: {
+        weaponDamage: [10, 14],
+        power: 4,
+        level: 1,
+        criticalChance: 0.05,
+        criticalMultiplier: 1.5,
         windupMs: 800,
         impactMs: 900,
         recoveryMs: 700,
@@ -403,6 +917,8 @@ export const GAME_DATA: GameDataCatalog = {
       },
       telegraphMs: 700,
       xpReward: 24,
+      goldReward: 12,
+      materialsReward: 3,
       animationIds: [
         'enemy.root_brute.idle.down',
         'enemy.root_brute.moving.down',
@@ -416,10 +932,16 @@ export const GAME_DATA: GameDataCatalog = {
       maxHealth: 50,
       armor: 4,
       moveSpeedPxPerSec: 140,
+      separationRadiusPx: 26,
       detectRadiusPx: 240,
       loseTargetRadiusPx: 360,
       leashRadiusPx: 460,
       attack: {
+        weaponDamage: [12, 16],
+        power: 5,
+        level: 1,
+        criticalChance: 0.06,
+        criticalMultiplier: 1.5,
         windupMs: 900,
         impactMs: 950,
         recoveryMs: 800,
@@ -430,6 +952,8 @@ export const GAME_DATA: GameDataCatalog = {
       },
       telegraphMs: 900,
       xpReward: 20,
+      goldReward: 10,
+      materialsReward: 2,
       animationIds: [
         'enemy.unstable_beast.idle.down',
         'enemy.unstable_beast.moving.down',
@@ -438,6 +962,23 @@ export const GAME_DATA: GameDataCatalog = {
       frameSize: 64,
     },
   ],
+  enemyAbilityTuning: {
+    tuningStatus: 'PROVISIONAL',
+    // Chamán (dark_shaman): restores half of an ally's missing health, ignores near-full allies.
+    healAllies: { healMissingFraction: 0.5, ignoreAboveFraction: 0.9 },
+    // Bruto (root_brute): 90px burst around the caster, 1.2s stun on those hit.
+    areaAttack: { radiusPx: 90, stunMs: 1200 },
+    // Bestia (unstable_beast): 90px death burst announced 900ms ahead, 1.8x damage.
+    explosion: { radiusPx: 90, telegraphMs: 900, damageMultiplier: 1.8 },
+    // Arquero (possessed_archer): slow visible bolt, ~attack.range reach, 16px contact radius.
+    ranged: { projectileSpeedPxPerSec: 400, projectileMaxRangePx: 260, hitRadiusPx: 16 },
+  },
+  endlessForest: {
+    tuningStatus: 'PROVISIONAL',
+    minimumLevel: 1,
+    maximumLevel: 20,
+    levels: buildEndlessForestLevels(),
+  },
   zone: {
     id: 'corrupted_forest',
     displayName: 'Bosque Corrupto',
@@ -627,4 +1168,24 @@ export const GAME_DATA: GameDataCatalog = {
       lethal: false,
     },
   ],
+  // M1 of the post-MVP class expansion (docs/plans/post-goal-class-expansion.md): the registry
+  // shape proven against Guardian. dark_knight/arcanist/hunter/summoner join with empty
+  // branchIds/nodes until their vertical slice (M2) is designed and their art is budgeted — an
+  // empty branch list is a valid, intentional starting state, not a placeholder to fill blindly.
+  classRegistry: {
+    registryVersion: 'class-registry.1',
+    classes: [
+      {
+        classId: 'guardian',
+        schemaVersion: 'class-registry.1',
+        displayName: 'Guardián',
+        roleTags: ['melee_resilient'],
+        resource: 'fury',
+        attributeIds: ['strength', 'dexterity', 'intelligence', 'vitality'],
+        branchIds: [],
+      },
+    ],
+    branches: [],
+    nodes: [],
+  },
 };

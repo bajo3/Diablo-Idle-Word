@@ -8,3 +8,13 @@ dist/
 coverage/
 pnpm-lock.yaml
 scripts/*.ps1
+
+# Local tooling scratch space (Node/Python helpers, vendored MCP servers).
+# Not part of the app source; formatting it would churn third-party files.
+tools/
+scripts/aseprite-gen/out/
+
+# Codex smoke-test output.
+artifacts/
+# Design brief written by the project owner; not ours to reformat.
+/classes.md

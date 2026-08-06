@@ -1,0 +1,48 @@
+import type { InteractionTarget } from '@brecha/shared';
+
+/** Authoritative map data shared by the server adapter and the local presentation preview. */
+export const CORRUPTED_FOREST_INTERACTION_TARGETS = Object.freeze([
+  {
+    interactionId: 'chest:forest:01',
+    kind: 'chest',
+    position: Object.freeze({ x: 220, y: 160 }),
+    radiusPx: 64,
+    available: true,
+    oneShot: true,
+    durationMs: 700,
+    allowedActorStates: ['active'],
+    interruptOnDamage: true,
+    authority: 'server',
+    resultId: 'chest.reward.forest.basic',
+    ui: { label: 'cofre', prompt: '[F] Abrir cofre' },
+  },
+  {
+    interactionId: 'npc:forest:scout',
+    kind: 'npc',
+    position: Object.freeze({ x: 160, y: 285 }),
+    radiusPx: 68,
+    available: true,
+    oneShot: false,
+    durationMs: 250,
+    allowedActorStates: ['active'],
+    interruptOnDamage: false,
+    authority: 'server',
+    resultId: 'dialogue.forest.scout',
+    cooldownMs: 1_000,
+    ui: { label: 'exploradora', prompt: '[F] Hablar con la exploradora' },
+  },
+  {
+    interactionId: 'revive:forest:altar',
+    kind: 'revive',
+    position: Object.freeze({ x: 330, y: 160 }),
+    radiusPx: 72,
+    available: true,
+    oneShot: false,
+    durationMs: 1_500,
+    allowedActorStates: ['active', 'downed'],
+    interruptOnDamage: true,
+    authority: 'server',
+    resultId: 'revive.forest.altar',
+    ui: { label: 'altar de reanimación', prompt: '[F] Activar altar' },
+  },
+] as const satisfies readonly InteractionTarget[]);

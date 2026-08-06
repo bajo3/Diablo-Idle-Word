@@ -99,6 +99,25 @@ describe('Guardian combat pure rules', () => {
       amount: 36,
     });
   });
+  it('folds equipped-gear bonuses into health, armor, crit chance and weapon damage', () => {
+    const geared: GuardianCombatTuning = {
+      ...tuning,
+      armorBonus: 30,
+      maxHealthBonus: 50,
+      criticalChanceBonus: 0.1,
+      physicalDamageBonus: 20,
+    };
+    const state = createGuardianCombatState(geared);
+    expect(state).toMatchObject({ health: 270, maxHealth: 270, armor: 55 });
+    expect(criticalChance(geared)).toBeCloseTo(0.175);
+    // `minimumRng` ignores the roll range entirely (always returns 10), so it can't show whether
+    // physicalDamageBonus actually shifted the weapon range — echo the floor back instead.
+    const echoFloorRng = { nextInt: (minimum: number) => minimum, next: () => 1 };
+    expect(resolvePhysicalDamage(tuning, 100, 1, echoFloorRng).base).toBe(20); // 10 (floor) + 10 (power)
+    expect(resolvePhysicalDamage(geared, 100, 1, echoFloorRng).base).toBe(40); // 30 (floor) + 10 (power)
+    // A tuning with no bonuses at all (the field is optional) must behave exactly as before.
+    expect(createGuardianCombatState(tuning)).toMatchObject({ health: 220, armor: 25 });
+  });
   it('clamps armor mitigation and never produces negative damage', () => {
     expect(armorMitigation(0, 1, tuning)).toBe(0);
     expect(armorMitigation(1_000_000, 1, tuning)).toBe(0.75);
@@ -189,6 +208,16 @@ describe('Guardian combat pure rules', () => {
         },
       ).accepted,
     ).toBe(true);
+  });
+  it('rejects every new ability while the Guardian is downed', () => {
+    const downed = { ...createGuardianCombatState(tuning), health: 0, fury: 100 };
+    expect(
+      tryActivateAbility(tuning, downed, {
+        ability: 'slash',
+        executionId: 'downed:slash',
+        at: 1,
+      }),
+    ).toEqual({ accepted: false, reason: 'downed' });
   });
   it('starts iron skin on cast impact and expires from that point', () => {
     const accepted = tryActivateAbility(

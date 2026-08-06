@@ -31,6 +31,16 @@ export type GuardianCombatTuning = Readonly<{
   furyDecayPerSecond: number;
   battleThirst: Readonly<{ healFraction: number; capFraction: number; windowMs: number }>;
   abilities: Readonly<Record<GuardianAbilityKey, GuardianAbilityTuning>>;
+  /**
+   * Flat bonuses summed from equipped gear (see `ItemStatKey` in items.ts), layered on top of the
+   * attribute-derived baseline. All optional/default 0 so every existing tuning literal — tests,
+   * the catalog default, enemy tuning reused as attacker stats — stays valid without change.
+   * `criticalChanceBonus` is a fraction (0.03, not 3) to match `criticalBaseChance`'s own units.
+   */
+  armorBonus?: number;
+  physicalDamageBonus?: number;
+  maxHealthBonus?: number;
+  criticalChanceBonus?: number;
 }>;
 export type GuardianAbilityTuning = Readonly<{
   id: string;
@@ -80,18 +90,22 @@ export type AbilityAcceptance = Readonly<{
   executionId: string;
   at: number;
 }>;
-export type AbilityRejection = Readonly<{ accepted: false; reason: 'cooldown' | 'fury' }>;
+export type AbilityRejection = Readonly<{
+  accepted: false;
+  reason: 'cooldown' | 'fury' | 'downed';
+}>;
 export type AbilityAttemptResult = AbilityAcceptance | AbilityRejection;
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
 
 export function createGuardianCombatState(tuning: GuardianCombatTuning): GuardianCombatState {
+  const maxHealth = 100 + tuning.vitality * 10 + (tuning.maxHealthBonus ?? 0);
   return {
-    health: 100 + tuning.vitality * 10,
-    maxHealth: 100 + tuning.vitality * 10,
+    health: maxHealth,
+    maxHealth,
     fury: 0,
-    armor: 20 + Math.floor(tuning.strength * 0.5),
+    armor: 20 + Math.floor(tuning.strength * 0.5) + (tuning.armorBonus ?? 0),
     cooldownEndsAt: {},
     ironSkinStartsAt: undefined,
     ironSkinEndsAt: undefined,
@@ -103,7 +117,9 @@ export function createGuardianCombatState(tuning: GuardianCombatTuning): Guardia
 
 export function criticalChance(tuning: GuardianCombatTuning): number {
   return clamp(
-    tuning.criticalBaseChance + tuning.dexterity * tuning.criticalPerDexterity,
+    tuning.criticalBaseChance +
+      tuning.dexterity * tuning.criticalPerDexterity +
+      (tuning.criticalChanceBonus ?? 0),
     0,
     tuning.criticalCap,
   );
@@ -182,9 +198,10 @@ export function resolvePhysicalDamage(
   abilityMultiplier: number,
   random: RandomSource,
 ): DamageResult {
+  const damageBonus = tuning.physicalDamageBonus ?? 0;
   return resolveAttack(
     {
-      weaponDamage: tuning.weaponDamage,
+      weaponDamage: [tuning.weaponDamage[0] + damageBonus, tuning.weaponDamage[1] + damageBonus],
       power: tuning.strength,
       level: tuning.level,
       criticalChance: criticalChance(tuning),
@@ -207,6 +224,7 @@ export function tryActivateAbility(
   attempt: AbilityAttempt,
 ): AbilityAttemptResult {
   const ability = tuning.abilities[attempt.ability];
+  if (state.health === 0) return { accepted: false, reason: 'downed' };
   if ((state.cooldownEndsAt[attempt.ability] ?? 0) > attempt.at)
     return { accepted: false, reason: 'cooldown' };
   if (state.fury < ability.furyCost) return { accepted: false, reason: 'fury' };
@@ -258,6 +276,28 @@ export function applyDamageTaken(
   return {
     ...state,
     health: clamp(state.health - amount, 0, state.maxHealth),
+    fury: amount > 0 ? clamp(state.fury + tuning.furyOnDamageTaken, 0, tuning.maxFury) : state.fury,
+    lastCombatAt: amount > 0 ? at : state.lastCombatAt,
+    furyDecayCarryMs: amount > 0 ? 0 : state.furyDecayCarryMs,
+  };
+}
+
+/**
+ * Applies damage whose mitigation has already been resolved by the shared attacker/defender
+ * formula. Enemy projectiles and telegraphs use `resolveAttack` before reaching the local scene
+ * adapter; routing that final amount through `applyDamageTaken` again would reduce it twice.
+ */
+export function applyResolvedDamageTaken(
+  tuning: GuardianCombatTuning,
+  state: GuardianCombatState,
+  resolvedDamage: number,
+  at: number,
+): GuardianCombatState {
+  if (state.health === 0) return state;
+  const amount = Math.max(0, Math.min(state.health, Math.round(resolvedDamage)));
+  return {
+    ...state,
+    health: state.health - amount,
     fury: amount > 0 ? clamp(state.fury + tuning.furyOnDamageTaken, 0, tuning.maxFury) : state.fury,
     lastCombatAt: amount > 0 ? at : state.lastCombatAt,
     furyDecayCarryMs: amount > 0 ? 0 : state.furyDecayCarryMs,
@@ -338,7 +378,7 @@ export function applyBattleThirst(
 export function targetWithinArc(
   origin: CombatVector,
   facing: CombatVector,
-  target: CombatTarget,
+  target: Pick<CombatTarget, 'position'>,
   rangePx: number,
   arcDegrees: number,
 ): boolean {
@@ -352,7 +392,7 @@ export function targetWithinArc(
 
 export function targetWithinRadius(
   origin: CombatVector,
-  target: CombatTarget,
+  target: Pick<CombatTarget, 'position'>,
   radiusPx: number,
 ): boolean {
   return Math.hypot(target.position.x - origin.x, target.position.y - origin.y) <= radiusPx;

@@ -1,0 +1,17 @@
+FROM node:24-bookworm-slim AS build
+
+ENV COREPACK_HOME=/usr/local/share/corepack
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
+COPY . .
+ARG VITE_API_URL=http://127.0.0.1:3002
+ENV VITE_API_URL=${VITE_API_URL}
+RUN pnpm install --frozen-lockfile \
+  && pnpm --filter @brecha/shared --filter @brecha/game-data build \
+  && pnpm --filter @brecha/web build
+
+FROM nginx:1.29-alpine AS runtime
+COPY deploy/nginx/staging.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80

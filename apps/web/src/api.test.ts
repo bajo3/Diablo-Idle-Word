@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiClient, ApiError } from './api';
+import { ApiClient, ApiError, defaultApiBaseUrl } from './api';
 
 const response = (status: number, body: unknown): Response =>
   ({
@@ -9,6 +9,23 @@ const response = (status: number, body: unknown): Response =>
     status,
     json: async () => body,
   }) as Response;
+
+describe('defaultApiBaseUrl', () => {
+  it('defaults to the page origin so the session cookie stays first-party', () => {
+    // The single-origin deployment depends on this. It must not hinge on import.meta.env's PROD
+    // flag: the repo's root .env sets NODE_ENV=development, which Vite honours even for a
+    // production build, so PROD arrived as false in a real bundle.
+    expect(defaultApiBaseUrl({})).toBe('');
+    expect(defaultApiBaseUrl({ VITE_API_URL: '' })).toBe('');
+    expect(defaultApiBaseUrl({ VITE_API_URL: undefined })).toBe('');
+  });
+
+  it('honours an explicit VITE_API_URL for the split local setup', () => {
+    expect(defaultApiBaseUrl({ VITE_API_URL: 'http://localhost:3001' })).toBe(
+      'http://localhost:3001',
+    );
+  });
+});
 
 describe('ApiClient', () => {
   it('retries safe reads once after an unreachable transport failure', async () => {

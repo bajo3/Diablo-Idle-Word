@@ -1,3 +1,4 @@
+import { CharacterClassIdSchema, type CharacterClassId } from '@brecha/shared';
 import { z } from 'zod';
 
 const visibleNamePattern = /^[\p{L}\p{N}][\p{L}\p{N} _'-]*$/u;
@@ -15,7 +16,7 @@ export function normalizeVisibleName(value: string): string {
 }
 
 const EmailSchema = z.string().transform(normalizeEmail).pipe(z.string().email().max(320));
-const PasswordSchema = z.string().min(12).max(128);
+const PasswordSchema = z.string().min(6).max(128);
 
 export const ProfileNameSchema = z
   .string()
@@ -43,8 +44,12 @@ export type LoginInput = z.infer<typeof LoginInputSchema>;
 export const UpdateProfileInputSchema = z.strictObject({ displayName: ProfileNameSchema });
 export type UpdateProfileInput = z.infer<typeof UpdateProfileInputSchema>;
 
-export const CreateGuardianInputSchema = z.strictObject({ name: GuardianNameSchema });
+export const CreateGuardianInputSchema = z.strictObject({
+  name: GuardianNameSchema,
+  class: CharacterClassIdSchema.default('GUARDIAN'),
+});
 export type CreateGuardianInput = z.infer<typeof CreateGuardianInputSchema>;
+export type { CharacterClassId };
 
 export type AuthenticatedPrincipal = {
   sessionId: string;

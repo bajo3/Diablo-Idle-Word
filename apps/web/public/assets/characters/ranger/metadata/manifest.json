@@ -1,5 +1,12 @@
 {
   "id": "ranger",
+  "provenance": {
+    "source": "PixelLab MCP export",
+    "author": "PixelLab",
+    "license": "PixelLab ToS",
+    "addedAt": "2026-07-30",
+    "status": "generated"
+  },
   "displayName": "Ranger",
   "frameSize": {
     "width": 92,

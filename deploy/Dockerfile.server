@@ -1,0 +1,22 @@
+FROM node:24-bookworm-slim AS runtime
+
+ENV COREPACK_HOME=/usr/local/share/corepack
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/* \
+  && corepack enable \
+  && corepack prepare pnpm@11.9.0 --activate
+
+# Staging keeps the workspace layout so Prisma, shared contracts and game-data resolve exactly as in CI.
+COPY . .
+RUN pnpm install --frozen-lockfile \
+  && DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build pnpm db:generate \
+  && pnpm --filter @brecha/shared --filter @brecha/game-data build \
+  && pnpm --filter @brecha/server build
+
+ENV NODE_ENV=production
+EXPOSE 3001
+
+CMD ["pnpm", "--filter", "@brecha/server", "start"]

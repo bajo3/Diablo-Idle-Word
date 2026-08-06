@@ -1,8 +1,22 @@
 import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type CharacterClassId } from '@brecha/shared';
 
 import { ActionRunner } from './action-runner';
 import { ApiError, gameApi } from './api';
+import { CharacterSelect } from './screens/CharacterSelect';
+import { Gateway, GatewayMessage } from './screens/Gateway';
 import { GameIsland } from './game/GameIsland';
+import { Expedition } from './screens/Expedition';
+import { Inventory } from './screens/Inventory';
+import { RewardResults } from './screens/RewardResults';
+import { MainMenu } from './screens/MainMenu';
+import { Town } from './screens/Town';
+import { Character } from './screens/Character';
+import { Skills } from './screens/Skills';
+import { AwayMode } from './screens/AwayMode';
+import { Merchant } from './screens/Merchant';
+import { Chest } from './screens/Chest';
+import { Settings } from './screens/Settings';
 import { usePath } from './router';
 import { useSessionBootstrap } from './session';
 
@@ -34,6 +48,7 @@ export function App() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [guardianName, setGuardianName] = useState('');
+  const [guardianClass, setGuardianClass] = useState<CharacterClassId>('BARBARIAN');
   const [pendingDeletion, setPendingDeletion] = useState<string>();
 
   const markSuccess = useCallback(() => {
@@ -96,7 +111,15 @@ export function App() {
         navigate('/guardianes');
       } catch (error) {
         markFailure(error);
-        setMessage(errorText(error));
+        if (error instanceof ApiError && error.code === 'conflict' && authMode === 'register') {
+          setMessage('Ya existe una cuenta con ese correo. Elegí “Ya tengo cuenta”.');
+        } else if (error instanceof ApiError && error.code === 'invalid_request') {
+          setMessage('Revisá el correo, el nombre y la contraseña de al menos 6 caracteres.');
+        } else if (error instanceof ApiError && error.code === 'unauthenticated') {
+          setMessage('El correo o la contraseña no son correctos.');
+        } else {
+          setMessage(errorText(error));
+        }
       }
     });
   };
@@ -135,12 +158,13 @@ export function App() {
     if (session.kind !== 'authenticated') return;
     await runAction('guardian:create', async () => {
       try {
-        await gameApi.createGuardian(guardianName);
+        await gameApi.createGuardian(guardianName, guardianClass);
         const characters = await gameApi.characters();
         markSuccess();
         setMessage(undefined);
         authenticate(session.profile, characters.characters);
         setGuardianName('');
+        setGuardianClass('BARBARIAN');
       } catch (error) {
         markFailure(error);
         setMessage(errorText(error));
@@ -157,6 +181,7 @@ export function App() {
         markSuccess();
         setMessage(undefined);
         authenticate(session.profile, characters.characters);
+        navigate('/pueblo');
       } catch (error) {
         markFailure(error);
         setMessage(errorText(error));
@@ -182,267 +207,277 @@ export function App() {
     });
   };
 
-  if (session.kind === 'booting')
+  // Vitrina sin auth: se sirve antes de cualquier gate de sesión para no depender del backend.
+  // Muestra la escena local con el Bruto (primer enemigo con arte propio) sin requerir server/DB.
+  // Atajo visual de desarrollo, no parte del flujo de juego real.
+  if (path === '/bruto-preview') {
     return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-      </Screen>
+      <main className="game-fullscreen">
+        <GameIsland
+          characterId="preview:bruto"
+          connection="offline"
+          localProgression
+          onCheckpoint={async () => undefined}
+          onExit={() => navigate('/')}
+          onOpenCharacter={() => navigate('/bruto-personaje')}
+          onOpenInventory={() => navigate('/inventario')}
+          onOpenResults={() => navigate('/resultados')}
+          onOpenTown={() => navigate('/pueblo')}
+        />
+      </main>
     );
+  }
+
+  if (path === '/bruto-personaje') {
+    return (
+      <Character characterId="preview:bruto" local onBack={() => navigate('/bruto-preview')} />
+    );
+  }
+
+  // Kit de UI (bloque 1): Menú, Pueblo e Inventario. Sin lógica de backend todavía;
+  // viven como pantallas navegables con datos de ejemplo para validar el diseño.
+  if (path === '/menu') {
+    const hasSession = session.kind === 'authenticated';
+    const statusMessage =
+      session.kind === 'anonymous' ||
+      session.kind === 'authenticated' ||
+      session.kind === 'maintenance' ||
+      session.kind === 'recoverable-error'
+        ? session.status?.message
+        : undefined;
+    return (
+      <MainMenu
+        hasSession={hasSession}
+        serverStatus={statusMessage}
+        onPlay={() => navigate(hasSession ? '/guardianes' : '/pueblo')}
+        onContinue={hasSession ? () => navigate('/guardianes') : undefined}
+        onSettings={() => navigate('/ajustes')}
+        onCredits={() => setMessage('La Brecha Oscura · interfaz de prototipo.')}
+        onStatus={() => navigate('/estado')}
+        notice={message}
+      />
+    );
+  }
+  if (path === '/pueblo') {
+    const selectedCharacter =
+      session.kind === 'authenticated'
+        ? session.characters.find((character) => character.selected)
+        : undefined;
+    const name =
+      selectedCharacter?.name ??
+      (session.kind === 'authenticated' ? session.profile.displayName : 'Guardián');
+    return (
+      <Town
+        characterName={name}
+        level={1}
+        gold={1240}
+        materials={45}
+        {...(selectedCharacter === undefined ? {} : { characterId: selectedCharacter.id })}
+        onBack={() => navigate('/guardianes')}
+        onDock={(key) => {
+          if (key === 'I') navigate('/inventario');
+          else if (key === 'C' || key === 'Personaje') navigate('/personaje');
+          else if (key === 'H' || key === 'Habilidades') navigate('/habilidades');
+          else if (key === 'E' || key === 'Guardián del Portal') navigate('/expedicion');
+          else if (key === 'A' || key === 'Ausente') navigate('/ausente');
+          else if (key === 'M' || key === 'Comerciante') navigate('/comerciante');
+          else if (key === 'B' || key === 'Cofre') navigate('/cofre');
+          else if (key === 'ESC' || key === 'Ajustes') navigate('/ajustes');
+          else navigate('/guardianes');
+        }}
+      />
+    );
+  }
+  if (path === '/comerciante' || path === '/cofre') {
+    const selectedCharacterId =
+      session.kind === 'authenticated'
+        ? session.characters.find((character) => character.selected)?.id
+        : undefined;
+    return path === '/comerciante' ? (
+      <Merchant characterId={selectedCharacterId} onBack={() => navigate('/pueblo')} />
+    ) : (
+      <Chest characterId={selectedCharacterId} onBack={() => navigate('/pueblo')} />
+    );
+  }
+  if (path === '/ajustes') return <Settings onBack={() => navigate('/pueblo')} />;
+  if (path === '/inventario') {
+    const selectedCharacterId =
+      session.kind === 'authenticated'
+        ? session.characters.find((character) => character.selected)?.id
+        : undefined;
+    return <Inventory characterId={selectedCharacterId} onBack={() => navigate('/pueblo')} />;
+  }
+  if (path === '/resultados') {
+    const selectedCharacterId =
+      session.kind === 'authenticated'
+        ? session.characters.find((character) => character.selected)?.id
+        : undefined;
+    return <RewardResults characterId={selectedCharacterId} onBack={() => navigate('/pueblo')} />;
+  }
+  if (path === '/ausente') {
+    const selectedCharacter =
+      session.kind === 'authenticated'
+        ? session.characters.find((character) => character.selected)
+        : undefined;
+    return (
+      <AwayMode
+        {...(selectedCharacter === undefined ? {} : { characterId: selectedCharacter.id })}
+        characterName={selectedCharacter?.name ?? 'Guardián'}
+        onBack={() => navigate('/pueblo')}
+      />
+    );
+  }
+  if (session.kind === 'authenticated' && (path === '/personaje' || path === '/habilidades')) {
+    const selectedCharacter = session.characters.find((character) => character.selected);
+    if (selectedCharacter === undefined) {
+      return <CharacterSelectionRequired onGoToCharacters={() => navigate('/guardianes')} />;
+    }
+    const selectedCharacterId = selectedCharacter.id;
+    if (path === '/personaje' && selectedCharacter.availability !== 'AVAILABLE') {
+      return (
+        <AwayMode
+          characterId={selectedCharacter.id}
+          characterName={selectedCharacter.name}
+          onBack={() => navigate('/pueblo')}
+          autoReturn={selectedCharacter.availability === 'AWAY_FARMING'}
+        />
+      );
+    }
+    return path === '/personaje' ? (
+      <Character characterId={selectedCharacterId} onBack={() => navigate('/pueblo')} />
+    ) : (
+      <Skills characterId={selectedCharacterId} onBack={() => navigate('/pueblo')} />
+    );
+  }
+  if (path === '/expedicion') {
+    const name = session.kind === 'authenticated' ? session.profile.displayName : 'Guardián';
+    return (
+      <Expedition
+        characterName={name}
+        onBack={() => navigate('/pueblo')}
+        onEnter={() => navigate(session.kind === 'authenticated' ? '/mundo' : '/bruto-preview')}
+      />
+    );
+  }
+
+  if (session.kind === 'booting') return <GatewayMessage connection={connection} />;
   if (path === '/estado') {
     const status = session.status;
     return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-        <h1>Estado del servidor</h1>
-        <p>{status === undefined ? 'No se pudo confirmar el estado.' : status.message}</p>
-        <button onClick={() => navigate('/')} type="button">
-          Volver
-        </button>
-      </Screen>
+      <GatewayMessage
+        action={{ label: 'Volver', onClick: () => navigate('/') }}
+        body={status === undefined ? 'No se pudo confirmar el estado.' : status.message}
+        connection={connection}
+        title="Estado del servidor"
+      />
     );
   }
   if (session.kind === 'recoverable-error')
     return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-        <h1>Conexión interrumpida</h1>
-        <p>{errorText(session.error)}</p>
-        <button onClick={retrySession} type="button">
-          Reintentar sesión
-        </button>
-      </Screen>
+      <GatewayMessage
+        action={{ label: 'Reintentar sesión', onClick: retrySession }}
+        body={errorText(session.error)}
+        connection={connection}
+        title="Conexión interrumpida"
+      />
     );
   if (session.kind === 'maintenance')
     return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-        <h1>Servidor en mantenimiento</h1>
-        <p>{session.status.message}</p>
-        <button onClick={() => navigate('/estado')} type="button">
-          Ver estado
-        </button>
-      </Screen>
+      <GatewayMessage
+        action={{ label: 'Ver estado', onClick: () => navigate('/estado') }}
+        body={session.status.message}
+        connection={connection}
+        title="Servidor en mantenimiento"
+      />
     );
-  if (session.kind === 'anonymous' && path === '/guardianes')
-    return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-        <p aria-live="polite">Abriendo la entrada…</p>
-      </Screen>
-    );
-  if (session.kind === 'anonymous' && path === '/partida')
-    return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-        <p aria-live="polite">Abriendo la entrada…</p>
-      </Screen>
-    );
+  if (session.kind === 'anonymous' && (path === '/guardianes' || path === '/mundo'))
+    return <GatewayMessage body="Abriendo la entrada…" connection={connection} />;
   if (session.kind === 'anonymous') {
     return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-        <h1>Entrá a la brecha</h1>
-        <form className="form" onSubmit={submitAuth}>
-          {authMode === 'register' ? (
-            <label>
-              Nombre visible
-              <input
-                onChange={(event) => setDisplayName(event.target.value)}
-                required
-                value={displayName}
-              />
-            </label>
-          ) : null}
-          <label>
-            Correo
-            <input
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              type="email"
-              value={email}
-            />
-          </label>
-          <label>
-            Contraseña
-            <input
-              minLength={12}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              type="password"
-              value={password}
-            />
-          </label>
-          <button disabled={busyKeys.has('auth')} type="submit">
-            {authMode === 'login' ? 'Ingresar' : 'Crear cuenta'}
-          </button>
-        </form>
-        <button
-          onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-          type="button"
-        >
-          {authMode === 'login' ? 'Crear cuenta' : 'Ya tengo cuenta'}
-        </button>
-        <button onClick={() => navigate('/estado')} type="button">
-          Estado del servidor
-        </button>
-        <Notice message={message} />
-      </Screen>
+      <Gateway
+        busy={busyKeys.has('auth')}
+        connection={connection}
+        displayName={displayName}
+        email={email}
+        mode={authMode}
+        notice={message}
+        onDisplayNameChange={setDisplayName}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        onStatus={() => navigate('/estado')}
+        onSubmit={submitAuth}
+        onToggleMode={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+        password={password}
+      />
     );
   }
 
-  if (path === '/partida') {
+  if (path === '/mundo') {
     const selected = session.characters.find(
       (character) => character.selected && character.availability === 'AVAILABLE',
     );
-    return (
-      <Screen>
-        <ConnectionStatus state={connection} />
-        <h1>Partida local</h1>
-        {selected === undefined ? (
+    if (selected === undefined) {
+      return (
+        <Screen>
+          <h1>Entrar al mundo</h1>
           <p>Seleccioná un Guardián disponible antes de entrar.</p>
-        ) : (
-          <GameIsland
-            characterId={selected.id}
-            connection={connection === 'connecting' ? 'degraded' : connection}
-            onCheckpoint={async (intent) => {
-              try {
-                await gameApi.saveCheckpoint(intent);
-                markSuccess();
-              } catch (error) {
-                markFailure(error);
-                setMessage(errorText(error));
-                throw error;
-              }
-            }}
-          />
-        )}
+          <button onClick={() => navigate('/guardianes')} type="button">
+            Volver a Guardianes
+          </button>
+        </Screen>
+      );
+    }
+    return (
+      <main className="game-fullscreen">
+        <GameIsland
+          characterId={selected.id}
+          connection={connection === 'connecting' ? 'degraded' : connection}
+          onCheckpoint={async (intent) => {
+            try {
+              await gameApi.saveCheckpoint(intent);
+              markSuccess();
+            } catch (error) {
+              markFailure(error);
+              setMessage(errorText(error));
+              throw error;
+            }
+          }}
+          onOpenCharacter={() => navigate('/personaje')}
+          onOpenInventory={() => navigate('/inventario')}
+          onOpenResults={() => navigate('/resultados')}
+          onOpenTown={() => navigate('/pueblo')}
+          onExit={() => navigate('/guardianes')}
+        />
         <Notice message={message} />
-        <button onClick={() => navigate('/guardianes')} type="button">
-          Volver a Guardianes
-        </button>
-      </Screen>
+      </main>
     );
   }
 
   return (
-    <main className="shell">
-      <section className="panel dashboard">
-        <header className="panel-header">
-          <div>
-            <p className="eyebrow">Sesión activa</p>
-            <h1>{session.profile.displayName}</h1>
-            <p>{session.profile.email}</p>
-          </div>
-          <div className="actions">
-            <button onClick={() => navigate('/estado')} type="button">
-              Estado
-            </button>
-            <button disabled={busyKeys.has('logout')} onClick={() => void logout()} type="button">
-              Cerrar sesión
-            </button>
-          </div>
-        </header>
-        <ConnectionStatus state={connection} />
-        <section aria-labelledby="profile-title">
-          <h2 id="profile-title">Perfil</h2>
-          <form className="inline-form" onSubmit={updateProfile}>
-            <label className="visually-hidden" htmlFor="display-name">
-              Nombre visible
-            </label>
-            <input
-              id="display-name"
-              onChange={(event) => setDisplayName(event.target.value)}
-              placeholder={session.profile.displayName}
-              required
-              value={displayName}
-            />
-            <button disabled={busyKeys.has('profile:update')} type="submit">
-              Guardar perfil
-            </button>
-          </form>
-        </section>
-        <section aria-labelledby="characters-title">
-          <h2 id="characters-title">Guardianes</h2>
-          <form className="inline-form" onSubmit={createGuardian}>
-            <label className="visually-hidden" htmlFor="guardian-name">
-              Nombre del Guardián
-            </label>
-            <input
-              id="guardian-name"
-              maxLength={24}
-              onChange={(event) => setGuardianName(event.target.value)}
-              placeholder="Nombre del Guardián"
-              required
-              value={guardianName}
-            />
-            <button disabled={busyKeys.has('guardian:create')} type="submit">
-              Crear Guardián
-            </button>
-          </form>
-          <ul className="characters">
-            {session.characters.map((character) => (
-              <li key={character.id}>
-                <div>
-                  <strong>{character.name}</strong>
-                  {character.selected ? <span className="badge">Seleccionado</span> : null}
-                  <small>
-                    {character.class} · Nivel {character.level} · {character.availability}
-                  </small>
-                </div>
-                <div className="actions">
-                  <button
-                    disabled={
-                      character.selected ||
-                      character.availability !== 'AVAILABLE' ||
-                      busyKeys.has(`guardian:select:${character.id}`)
-                    }
-                    onClick={() => void selectGuardian(character.id)}
-                    type="button"
-                  >
-                    Seleccionar
-                  </button>
-                  <button
-                    disabled={
-                      character.availability !== 'AVAILABLE' ||
-                      busyKeys.has(`guardian:delete:${character.id}`)
-                    }
-                    onClick={() => setPendingDeletion(character.id)}
-                    type="button"
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {session.characters.some(
-            (character) => character.selected && character.availability === 'AVAILABLE',
-          ) ? (
-            <button onClick={() => navigate('/partida')} type="button">
-              Entrar a partida local
-            </button>
-          ) : null}
-        </section>
-        {pendingDeletion === undefined ? null : (
-          <section aria-label="Confirmar eliminación" className="notice">
-            <p>La eliminación del Guardián se confirmará en el servidor.</p>
-            <div className="actions">
-              <button onClick={() => setPendingDeletion(undefined)} type="button">
-                Cancelar
-              </button>
-              <button
-                disabled={busyKeys.has(`guardian:delete:${pendingDeletion}`)}
-                onClick={() => void confirmDeleteGuardian()}
-                type="button"
-              >
-                Confirmar eliminación
-              </button>
-            </div>
-          </section>
-        )}
-        <Notice message={message} />
-      </section>
-    </main>
+    <CharacterSelect
+      busyKeys={busyKeys}
+      characters={session.characters}
+      connection={connection}
+      displayName={session.profile.displayName}
+      email={session.profile.email}
+      newClass={guardianClass}
+      newName={guardianName}
+      notice={message}
+      onCancelDelete={() => setPendingDeletion(undefined)}
+      onConfirmDelete={() => void confirmDeleteGuardian()}
+      onCreate={createGuardian}
+      onEnterWorld={() => navigate('/mundo')}
+      onLogout={() => void logout()}
+      onNewClassChange={setGuardianClass}
+      onNewNameChange={setGuardianName}
+      onProfileDraftChange={setDisplayName}
+      onRequestDelete={setPendingDeletion}
+      onSelect={(id) => void selectGuardian(id)}
+      onStatus={() => navigate('/estado')}
+      onUpdateProfile={updateProfile}
+      pendingDeletion={pendingDeletion}
+      profileDraft={displayName}
+    />
   );
 }
 
@@ -453,24 +488,23 @@ function Screen({ children }: { children: ReactNode }) {
     </main>
   );
 }
+
+function CharacterSelectionRequired({ onGoToCharacters }: { onGoToCharacters: () => void }) {
+  return (
+    <Screen>
+      <h1>Seleccioná un Guardián</h1>
+      <p>Elegí un personaje disponible antes de abrir su hoja o sus habilidades.</p>
+      <button onClick={onGoToCharacters} type="button">
+        Ir a Guardianes
+      </button>
+    </Screen>
+  );
+}
+
 function Notice({ message }: { message: string | undefined }) {
   return message === undefined ? null : (
     <p aria-live="polite" className="notice">
       {message}
-    </p>
-  );
-}
-function ConnectionStatus({ state }: { state: ConnectionState }) {
-  const label = {
-    connecting: 'Conectando con La Brecha Oscura…',
-    degraded: 'Conexión degradada',
-    maintenance: 'Servidor en mantenimiento',
-    offline: 'Sin conexión',
-    online: 'En línea',
-  }[state];
-  return (
-    <p aria-live="polite" className="eyebrow" data-connection-state={state}>
-      {label}
     </p>
   );
 }

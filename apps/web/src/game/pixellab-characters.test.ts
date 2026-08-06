@@ -4,8 +4,11 @@ import {
   darkKnight,
   mapDirection,
   mapState,
+  pickAnimation,
   pixelLabKey,
   pixelLabSheetsToLoad,
+  ranger,
+  rootBrute,
 } from './pixellab-characters';
 
 describe('PixelLab character mapping', () => {
@@ -47,5 +50,48 @@ describe('PixelLab character mapping', () => {
     for (const animation of Object.values(darkKnight.animations))
       for (const direction of ['north', 'south', 'east'] as const)
         expect(animation.sheets[direction].frameCount).toBeGreaterThan(0);
+  });
+
+  it('declares the ranger enemy with the complete five-animation contract', () => {
+    expect(Object.keys(ranger.animations).sort()).toEqual([
+      'basic_attack',
+      'death',
+      'hit',
+      'idle',
+      'walk',
+    ]);
+    expect(pixelLabSheetsToLoad(ranger)).toHaveLength(15);
+    expect(pickAnimation(ranger, 'stunned')).toBe('hit');
+    expect(pickAnimation(ranger, 'dead')).toBe('death');
+  });
+
+  it('declares the root_brute enemy with only the three generated animations at 248x248', () => {
+    expect(Object.keys(rootBrute.animations).sort()).toEqual(['basic_attack', 'idle', 'walk']);
+    expect(rootBrute.frameWidth).toBe(248);
+    expect(rootBrute.frameHeight).toBe(248);
+    const sheets = pixelLabSheetsToLoad(rootBrute);
+    expect(sheets).toHaveLength(9);
+    for (const sheet of sheets) {
+      expect(sheet.path.startsWith('/assets/characters/root_brute/full/')).toBe(true);
+      expect(sheet.path.endsWith('.png')).toBe(true);
+      expect(sheet.frameWidth).toBe(248);
+      expect(sheet.frameHeight).toBe(248);
+    }
+    // idle is a single frame (generated from the v3 base rotations); walk/attack are six each.
+    expect(rootBrute.animations.idle?.sheets.south.frameCount).toBe(1);
+    expect(rootBrute.animations.walk?.sheets.south.frameCount).toBe(6);
+    expect(rootBrute.animations.basic_attack?.sheets.south.frameCount).toBe(6);
+  });
+
+  it('falls back to idle when the mapped animation was not generated for a character', () => {
+    // root_brute has no hit/death: stunned/dead must fall back to idle, moving/attacking resolve
+    // to their own generated animations.
+    expect(pickAnimation(rootBrute, 'stunned')).toBe('idle');
+    expect(pickAnimation(rootBrute, 'dead')).toBe('idle');
+    expect(pickAnimation(rootBrute, 'moving')).toBe('walk');
+    expect(pickAnimation(rootBrute, 'attacking')).toBe('basic_attack');
+    // dark_knight has all five: no fallback needed.
+    expect(pickAnimation(darkKnight, 'stunned')).toBe('hit');
+    expect(pickAnimation(darkKnight, 'dead')).toBe('death');
   });
 });

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { BALANCE_VERSION, GAME_DATA_VERSION } from '@brecha/game-data';
+import type { CharacterClassId } from '@brecha/shared';
 
 import type { DatabaseClient } from '../persistence/database.js';
 
@@ -7,7 +9,7 @@ import type { CreateGuardianInput } from '../auth/contracts.js';
 export type CharacterSummary = {
   id: string;
   name: string;
-  class: 'GUARDIAN';
+  class: CharacterClassId;
   level: number;
   availability: string;
   selected: boolean;
@@ -60,9 +62,12 @@ export class CharacterService {
           id,
           userId,
           name: input.name,
-          class: 'GUARDIAN',
+          class: input.class,
           inventory: {
             create: { id: `inventory:${randomUUID()}`, capacity: 40, schemaVersion: 1 },
+          },
+          chest: {
+            create: { id: `chest:${id}`, capacity: 80, schemaVersion: 1, items: [] },
           },
           progress: {
             create: {
@@ -76,11 +81,36 @@ export class CharacterService {
           skills: {
             create: {
               id: `skill:${randomUUID()}`,
-              abilityId: 'guardian:basic_attack',
+              abilityId: 'ability.guardian.slash',
               level: 1,
               unlocked: true,
               equipped: true,
               barSlot: 0,
+            },
+          },
+          forestProgress: {
+            create: {
+              id: `forest-progress:${id}`,
+              formatVersion: 1,
+              stateSchemaVersion: 1,
+              dataVersion: GAME_DATA_VERSION,
+              balanceVersion: BALANCE_VERSION,
+              state: {
+                level: 1,
+                xpInLevel: 0,
+                bestLevel: 1,
+                totalXp: 0,
+                totalGold: 0,
+                totalMaterials: 0,
+                countedDefeats: [],
+              },
+            },
+          },
+          interactionState: {
+            create: {
+              id: `interaction-state:${id}`,
+              schemaVersion: 2,
+              state: { consumedTargetIds: [], cooldowns: [] },
             },
           },
         },
@@ -130,7 +160,7 @@ function toSummary(
   character: {
     id: string;
     name: string;
-    class: 'GUARDIAN';
+    class: CharacterClassId;
     availability: string;
     progress: { level: number } | null;
   },

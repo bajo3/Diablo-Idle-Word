@@ -9,6 +9,13 @@ datasource db {
 
 enum CharacterClass {
   GUARDIAN
+  AMAZON
+  ASSASSIN
+  BARBARIAN
+  DRUID
+  NECROMANCER
+  PALADIN
+  SORCERESS
 }
 
 enum CharacterAvailability {
@@ -94,40 +101,106 @@ model Session {
 }
 
 model Character {
-  id             String                @id @db.VarChar(128)
-  userId         String                @db.VarChar(128)
-  name           String                @db.VarChar(64)
-  class          CharacterClass
-  availability   CharacterAvailability @default(AVAILABLE)
-  gold           BigInt                @default(0)
-  materials      BigInt                @default(0)
-  strength       Int                   @default(10)
-  dexterity      Int                   @default(10)
-  intelligence   Int                   @default(10)
-  vitality       Int                   @default(10)
-  lastSeenAt     DateTime              @default(now())
-  saveVersion    Int                   @default(1)
-  revision       Int                   @default(1)
-  createdAt      DateTime              @default(now())
-  deletedAt      DateTime?
-  updatedAt      DateTime              @updatedAt
-  user           User                  @relation("CharacterOwner", fields: [userId], references: [id], onDelete: Restrict)
-  inventory      Inventory?
-  equipment      Equipment[]
-  inventoryItems InventoryItem[]       @relation("InventoryItemOwner")
-  skills         CharacterSkill[]
-  progress       CharacterProgress?
-  calibrations   AwayCalibration[]
-  awaySessions   AwaySession[]
-  awayResults    AwayResult[]
-  missionResults MissionResult[]
-  rewardLogs     RewardLog[]
-  checkpointReceipts CharacterCheckpointReceipt[]
-  selection      CharacterSelection?
+  id                  String                        @id @db.VarChar(128)
+  userId              String                        @db.VarChar(128)
+  name                String                        @db.VarChar(64)
+  class               CharacterClass
+  availability        CharacterAvailability         @default(AVAILABLE)
+  gold                BigInt                        @default(0)
+  materials           BigInt                        @default(0)
+  strength            Int                           @default(10)
+  dexterity           Int                           @default(10)
+  intelligence        Int                           @default(10)
+  vitality            Int                           @default(10)
+  lastSeenAt          DateTime                      @default(now())
+  saveVersion         Int                           @default(1)
+  revision            Int                           @default(1)
+  createdAt           DateTime                      @default(now())
+  deletedAt           DateTime?
+  updatedAt           DateTime                      @updatedAt
+  user                User                          @relation("CharacterOwner", fields: [userId], references: [id], onDelete: Restrict)
+  inventory           Inventory?
+  chest               CharacterChest?
+  equipment           Equipment[]
+  inventoryItems      InventoryItem[]               @relation("InventoryItemOwner")
+  skills              CharacterSkill[]
+  progress            CharacterProgress?
+  calibrations        AwayCalibration[]
+  awaySessions        AwaySession[]
+  awayResults         AwayResult[]
+  missionResults      MissionResult[]
+  rewardLogs          RewardLog[]
+  checkpointReceipts  CharacterCheckpointReceipt[]
+  selection           CharacterSelection?
+  forestProgress      CharacterForestProgress?
+  interactionState    CharacterInteractionState?
+  interactionReceipts CharacterInteractionReceipt[]
+  interactionEffects  CharacterInteractionEffect[]
+  inventoryOperations InventoryOperation[]
+  townOperations      CharacterTownOperation[]
 
   @@unique([id, userId])
   @@index([userId, deletedAt, updatedAt])
   @@index([availability])
+}
+
+model CharacterForestProgress {
+  id                 String    @id @db.VarChar(128)
+  characterId        String    @unique @db.VarChar(128)
+  formatVersion      Int       @default(1)
+  stateSchemaVersion Int       @default(1)
+  dataVersion        String    @default("1") @db.VarChar(64)
+  balanceVersion     String    @default("1") @db.VarChar(64)
+  state              Json      @default("{}")
+  revision           Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  character          Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, revision])
+}
+
+model CharacterInteractionState {
+  id            String    @id @db.VarChar(128)
+  characterId   String    @unique @db.VarChar(128)
+  schemaVersion Int       @default(2)
+  state         Json      @default("{\"consumedTargetIds\":[],\"cooldowns\":[]}")
+  revision      Int       @default(1)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, revision])
+}
+
+model CharacterInteractionReceipt {
+  id            String    @id @db.VarChar(128)
+  characterId   String    @db.VarChar(128)
+  operationId   String    @unique @db.VarChar(128)
+  requestHash   String    @db.Char(64)
+  schemaVersion Int
+  receipt       Json
+  createdAt     DateTime  @default(now())
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, operationId])
+  @@index([characterId, createdAt])
+}
+
+model CharacterInteractionEffect {
+  id          String    @id @db.VarChar(128)
+  characterId String    @db.VarChar(128)
+  operationId String    @unique @db.VarChar(128)
+  requestHash String    @db.Char(64)
+  resultId    String    @db.VarChar(128)
+  effectType  String    @db.VarChar(64)
+  status      String    @db.VarChar(32)
+  payload     Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, operationId])
+  @@index([characterId, createdAt])
 }
 
 model CharacterCheckpointReceipt {
@@ -142,8 +215,8 @@ model CharacterCheckpointReceipt {
   createdAt     DateTime  @default(now())
   character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
-  @@index([characterId, createdAt])
   @@unique([characterId, operationId])
+  @@index([characterId, createdAt])
 }
 
 model CharacterSelection {
@@ -168,6 +241,20 @@ model Inventory {
   items         InventoryItem[]
 
   @@unique([id, characterId])
+}
+
+model CharacterChest {
+  id            String    @id @db.VarChar(128)
+  characterId   String    @unique @db.VarChar(128)
+  capacity      Int       @default(80)
+  schemaVersion Int       @default(1)
+  items         Json      @default("[]")
+  revision      Int       @default(1)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  character     Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, revision])
 }
 
 model InventoryItem {
@@ -208,6 +295,38 @@ model Equipment {
   @@unique([characterId, slot])
   @@unique([inventoryItemId, characterId])
   @@index([characterId])
+}
+
+/**
+ * Idempotency ledger for inventory commands (equip, unequip, favorite, sell and drops).
+ */
+model InventoryOperation {
+  id          String    @id @db.VarChar(128)
+  characterId String    @db.VarChar(128)
+  operationId String    @unique @db.VarChar(128)
+  requestHash String    @db.Char(64)
+  kind        String    @db.VarChar(32)
+  result      Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, operationId])
+  @@index([characterId, createdAt])
+}
+
+/** Idempotency ledger for town tutorial commands. */
+model CharacterTownOperation {
+  id          String    @id @db.VarChar(128)
+  characterId String    @db.VarChar(128)
+  operationId String    @unique @db.VarChar(128)
+  requestHash String    @db.Char(64)
+  kind        String    @db.VarChar(32)
+  result      Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, operationId])
+  @@index([characterId, createdAt])
 }
 
 model CharacterSkill {

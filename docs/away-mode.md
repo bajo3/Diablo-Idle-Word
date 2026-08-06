@@ -1,4 +1,4 @@
-# Modo ausente
+# Modo ausente (implementado en Paso 16)
 
 ## Definición
 
@@ -7,7 +7,9 @@ un juego local sin conexión y no queda una simulación ejecutándose en la PC o
 
 ## Contrato vigente
 
-`@brecha/shared` define `CalibrationSnapshot`, `AwayMetrics` y `AwayResult` mediante schemas estrictos. Capturan build fingerprint, versiones, semilla, zona, dificultad, métricas y resultado sin implementar todavía el cálculo ni el reclamo.
+`@brecha/shared` define `CalibrationSnapshot`, `AwayMetrics` y `AwayResult` mediante schemas estrictos.
+`away-calculation.ts` agrega el cálculo puro, cap, eficiencia, penalización de supervivencia y loot
+determinista. `AwayService` implementa persistencia, rutas y reclamo; el cliente sólo expresa intención.
 
 ## Flujo
 
@@ -90,3 +92,13 @@ en el Paso 3 y el flujo completo en el Paso 16.
 - Cap de 8 horas y penalización por muerte.
 - Loot nuevo sin copiar el legendario de la muestra.
 - IDs únicos y claim concurrente.
+
+## Implementación vigente (Paso 16)
+
+Las rutas son `GET /api/characters/:id/away`, `POST .../away/calibration`, `POST .../complete`,
+`POST .../away/activate`, `POST .../away/return` y `POST .../away/claim`. `AwayService` deriva las
+métricas de `RewardLog` dentro de la ventana server-side, compara el fingerprint al completar y
+usa `RewardLog(operationId = away-claim:<resultId>)` para hacer el claim idempotente. La UI vive en
+`/ausente`; el WebSocket y las mutaciones de inventario/progresión rechazan personajes no
+`AVAILABLE`. Las tablas V1 ya existentes contienen todos los campos necesarios, por lo que no se
+agregó una migración nueva.

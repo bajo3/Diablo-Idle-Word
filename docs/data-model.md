@@ -22,15 +22,17 @@ por lo que dos Guardianes activos del mismo usuario no pueden diferir sólo por 
 `User` posee `Character` mediante `Character.userId`. Los repositorios leen por actor + personaje,
 por lo que un personaje ajeno no se expone. Cada personaje tiene un inventario y progreso únicos.
 
-| Entidad                                          | Invariantes durables                                                                                                       |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `Character`                                      | Oro/materiales `BIGINT`, cuatro atributos no negativos, `lastSeenAt`, save/revision positivos.                             |
-| `Inventory` / `InventoryItem`                    | Capacidad/schema versionados; cada instancia tiene owner, rareza, poder, favorito, afijos, generación y cantidad positiva. |
-| `Equipment`                                      | Un slot e item por personaje; FK compuesta `(inventoryItemId, characterId)` impide equipar un item ajeno.                  |
-| `CharacterSkill` / `CharacterProgress`           | `equipped` coincide con bar slot 0–3 y requiere unlocked; nivel 1–10, versiones/revisiones.                                |
-| `AwayCalibration` / `AwaySession` / `AwayResult` | Build/snapshot/rates/versiones, tiempos y resultados auditables; máximo una sesión ACTIVE por personaje.                   |
-| `MissionResult`                                  | `operationId` único pero múltiples ejecuciones por misión; dificultad, outcome, progreso y claim versionados.              |
-| `RewardLog`                                      | Operación única, hash SHA-256 canónico interno, source/sourceId, deltas y saldos posteriores de oro/materiales/XP.         |
+| Entidad                                                                                    | Invariantes durables                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Character`                                                                                | Oro/materiales `BIGINT`, cuatro atributos no negativos, `lastSeenAt`, save/revision positivos.                                                                          |
+| `Inventory` / `InventoryItem`                                                              | Capacidad/schema versionados; cada instancia tiene owner, rareza, poder, favorito, afijos, generación y cantidad positiva.                                              |
+| `Equipment`                                                                                | Un slot e item por personaje; FK compuesta `(inventoryItemId, characterId)` impide equipar un item ajeno.                                                               |
+| `CharacterSkill` / `CharacterProgress`                                                     | `equipped` coincide con bar slot 0–3 y requiere unlocked; nivel 1–10, versiones/revisiones.                                                                             |
+| `CharacterForestProgress`                                                                  | Snapshot V1 de nivel/XP/recompensas/derrotas contadas del Bosque, versiones de datos/balance y revisión positiva.                                                       |
+| `CharacterInteractionState` / `CharacterInteractionReceipt` / `CharacterInteractionEffect` | Estado V2 de interacciones (`oneShot`, cooldowns), decisiones idempotentes por `operationId` y efectos completados/autorizados con hash, duración, resultado y versión. |
+| `AwayCalibration` / `AwaySession` / `AwayResult`                                           | Build/snapshot/rates/versiones, tiempos y resultados auditables; máximo una sesión ACTIVE por personaje.                                                                |
+| `MissionResult`                                                                            | `operationId` único pero múltiples ejecuciones por misión; dificultad, outcome, progreso y claim versionados.                                                           |
+| `RewardLog`                                                                                | Operación única, hash SHA-256 canónico interno, source/sourceId, deltas y saldos posteriores de oro/materiales/XP.                                                      |
 
 Los CHECKs cubren recursos no negativos, revisiones positivas, cantidades, niveles, slots, estados
 de skill y coherencia de tiempos/marcador active. Las migraciones SQL son la fuente de verdad de
@@ -45,6 +47,15 @@ recibo almacenado aunque haya transacciones intermedias. El mismo `operationId` 
 source distinto se rechaza; recursos negativos hacen rollback sin ledger. `P2034`/`P2002` tienen
 reintentos acotados.
 
+## Progreso persistente del Bosque
+
+`CharacterForestProgress` separa la progresión del Bosque de la XP del personaje. Su snapshot V1 se
+define en `packages/shared/src/forest-progress-save.ts`: el array ordenado `countedDefeats` vuelve a
+ser un `ReadonlySet` al hidratar y la curva actual valida niveles, umbrales y el estado cap.
+`ForestProgressRepository` aplica ownership, control optimista de `revision` y transacciones
+`Serializable`; el cliente sólo puede leer el snapshot autenticado. Las recompensas y la mutación de
+derrotas requieren todavía un comando autoritativo del servidor.
+
 ## Versionado y Prisma
 
 El save V1 incluye `formatVersion`, `inventorySchemaVersion: 1` y
@@ -52,3 +63,11 @@ El save V1 incluye `formatVersion`, `inventorySchemaVersion: 1` y
 schema, migrations, seed y URL. Prisma 7.9.1 genera el cliente ESM en
 `apps/server/src/generated/prisma`, ignorado por Git y reproducido con `pnpm db:generate`.
 Las migraciones SQL bajo `apps/server/prisma/migrations` sí se versionan.
+
+# Addendum Paso 11 — inventario y drops
+
+`InventoryOperation` es el ledger idempotente por personaje: guarda `operationId`, hash canonico,
+tipo y snapshot JSON para replay/conflicto de equipar, desequipar, favorito, venta y drops.
+`InventoryItem.itemData` conserva la `ItemInstance` generada por seed; `generationData` conserva
+seed, version de generador, fuente y nivel. `RewardLog.payload` incluye el drop privado y su estado
+(`granted`, `no_drop` o `inventory_full`) para que un replay no vuelva a tirar la tabla.

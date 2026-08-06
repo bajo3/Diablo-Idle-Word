@@ -1,5 +1,6 @@
 /** Deterministic, seedable RNG. No Math.random(), no Date.now() — pure state transition. */
 import type { RandomSource } from './combat.js';
+export type { RandomSource } from './combat.js';
 
 /** Numeric PRNG seed. Distinct from the string `Seed` id in ids.ts (an away-mode/loot seed identifier). */
 export type RandomSeed = number;

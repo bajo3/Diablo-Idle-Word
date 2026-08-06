@@ -39,9 +39,9 @@ export type EnemySimState = Readonly<{
  * Data-driven movement differentiation (Paso 8.4): derived by the caller from the enemy's
  * declared `behaviors` tags (e.g. `behaviors.includes('keep_distance')`), never from its id -
  * GOAL.md forbids `if (id === ...)` special-casing. `close` (the melee default) holds ground
- * once engaged, for as long as it's in range. `keepDistance` (ranged enemies) also holds ground
- * normally, but backs away once the target closes to under half its `attackRangePx` - basic
- * kiting, so an archer doesn't just stand still while the Guardian walks up to it.
+ * once engaged, for as long as it's in range. `keepDistance` only applies to enemies explicitly
+ * tagged `keep_distance`; it holds ground normally but backs away once the target closes to under
+ * half its `attackRangePx`.
  *
  * There's no equivalent difference during `chase`: `decideEnemyState` only stays in `chase` while
  * `distanceToTargetPx > attackRangePx`, so a chaser can never actually be inside its own attack

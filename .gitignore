@@ -9,6 +9,9 @@ coverage/
 .env
 .env.*
 !.env.example
+# Public deployment template; it contains placeholders only.
+!deploy/staging.env.example
+deploy/staging.env
 
 # Test and browser artifacts
 playwright-report/
@@ -24,4 +27,14 @@ Thumbs.db
 # Local database data
 postgres-data/
 backups/dev/
+backups/staging/
 apps/server/src/generated/prisma/
+
+# Local tooling scratch space: vendored MCP servers and their checkouts (~62 MB, 2400+ files).
+# Reproducible from their upstreams; see scripts/aseprite-gen/README.md for what the rig needs.
+tools/
+# Smoke-test output from local MCP runs.
+artifacts/
+# Generated sprite sheets. The approved ones are published into apps/web/public/assets/ by
+# scripts/aseprite-gen/install.mjs; this directory is the unreviewed staging area.
+scripts/aseprite-gen/out/

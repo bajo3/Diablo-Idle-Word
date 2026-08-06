@@ -127,6 +127,44 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
 - 2026-07-30: sin A* para el MVP; seek/flee/arrive + separación alcanza para "navegación simple".
 - 2026-07-30: proyectiles y telégrafos se construyen una sola vez en 8.5 para que el jefe del Paso
   10 los reutilice sin duplicar código.
+- 2026-07-31 (smoke test PixelLab → gaps de integración confirmados con arte real): se generó
+  `root_brute` (único enemigo 128px del catálogo) vía `POST /v2/create-character-v3` desde cero
+  (pixen → v3, `template_id:"mannequin"`, `view:"low top-down"`, `seed:4201`, 128×128, sin fondo).
+  Costo verificado: **3 generaciones** por personaje base (no 1). El arte es legítimo y fiel al
+  Bruto de raíces (humanoide de bark/raíces, ojos verdes brillantes, fondo transparente, canvas
+  248×248 con padding para animación). El ZIP export v3.1 entregó: `Idle/rotations/{8dirs}.png`
+  (una imagen compuesta por dirección, NO un spritesheet) + `metadata.json` con
+  `states[0].frames.rotations` + `.animations:{}`. **Tres gaps concretos confirmados contra el
+  pipeline actual** (antes de quemar créditos en walk/attack): (1) `pixellab-process-character.mjs`
+  asume `animations[state][dir]=[framePaths...]` (lista), pero el estado base entrega
+  `rotations[dir]="single.png"` (un archivo) y `animations:{}` — explotaría en `framePaths.map`
+  (línea 58); está hecho para personajes con animaciones ya agregadas, no para el idle base.
+  (2) El validador `apps/web/src/game/assets.ts` exige 16 frames compartidos / 4 dirs / 4 frames
+  por (estado,dir) — layout del placeholder del Guardián; PixelLab da 8 dirs × 1 frame estático
+  por estado. Incompatible sin reescribir validador **y** `runtime.ts`. (3) `state_name:"Idle"`
+  (capital) vs catálogo `idle` (minúscula) — mapeo de naming. Balance PixelLab tras la prueba:
+  37/40 generaciones restantes. `character_id: 30be0b1d-2633-4cec-ba44-13a57cb72379` (vive en la
+  cuenta, re-descargable). Token usado pasó sólo inline (no en archivos); **rotar tras usar**.
+- 2026-07-31 (Bruto completo + adaptador funcionando): el primer hallazgo (3 gaps de integración)
+  se corrigió al descubrir que **ya existe un contrato separado para arte PixelLab real**:
+  `apps/web/src/game/pixellab-characters.ts` (`PixelLabCharacter`, con `darkKnight` ya cargado en
+  runtime). NO hace falta tocar el validador placeholder `assets.ts` ni su layout 4×4 — ese es
+  para el Guardián placeholder; los enemigos van por el camino `PixelLabCharacter`, que soporta
+  frame counts variables, 3 dirs generadas (north/south/east, west espeja east), y estados
+  separados. El Bruto se generó completo: base (3 gen, idle 8 dirs × 1 frame) + `walk` template
+  (10 gen, 8 dirs × 6 frames) + `cross-punch` template (14 gen, 8 dirs × 6 frames) = **27 gen
+  totales**, balance 13/40 restante. `cross-punch` reemplaza al inexistente `attack` (la API da la
+  lista de templates válidos al 422 sin cobrar — útil para no quemar generaciones a ciegas). ZIP
+  export v3.1 confirmado: `Idle/rotations/{8dirs}.png` + `Idle/animations/{walking|
+cross_punch_attack}/{8dirs}/frame_00{0-5}.png` + `metadata.json`. **`pixellab-process-character.mjs`
+  extendido** (sin romper el uso existente del Guardián/Ranger): `--three-dir` reduce 8→3 dirs,
+  `--state-map=A=B` renombra estados del ZIP al contrato (`walking`→`walk`, `cross_punch_attack`→
+  `basic_attack`), e idle se sintetiza desde `rotations` si no viene en `animations`. Probado contra
+  el ZIP real: produjo 9 spritesheets + manifiesto en `apps/web/public/assets/characters/root_brute/`
+  con formato idéntico al de `dark_knight`. Costo de ejecutar el script: `jimp` no es dep del repo
+  (el script es offline, como confirma `dark_knight` ya commiteado); se instala efímeramente en un
+  temp dir fuera del workspace. **Sigue sin wiring a Phaser para el Bruto** — falta declarar un
+  `PixelLabCharacter` para él y conectarlo al adaptador de enemigos (punto pendiente abajo).
 - 2026-07-30 (revisa la secuencia original de 8.0d): `LocalCombatController` ya es determinista por
   comparación de timestamps absolutos (`impact.at <= now`), no por acumulación de delta — no es lo
   que el riesgo de "8.0d" describía. Extraer un `SimulationWorld` de paso fijo _ahora_, sin ningún
@@ -221,16 +259,12 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       donde "demasiado cerca" sí es alcanzable. 2 tests nuevos (5 reemplazan intentos fallidos, ver
       Resultados). 107 tests totales verdes. Todavía falta mapear `behaviors` → `movementStyle` para
       los 5 enemigos reales y wirear a `runtime.ts` — parte 2.
-- [x] Completado (2026-07-30, parcial): 8.4 (parte 2) mapeo real de comportamientos. Nuevo
-      `packages/game-data/src/behavior-profile.ts` (`resolveEnemyMovementStyle`): cualquier enemigo
-      con la etiqueta `ranged` o `keep_distance` kitea, el resto presiona en melee — sigue siendo
-      dato → comportamiento, nunca id → comportamiento. `EnemyBehaviorSchema` extraído como schema
-      nombrado (antes era un enum anónimo inline en `EnemyDefinitionSchema`) para poder tipar la
-      función. Probado contra los 5 enemigos reales del catálogo: `possessed_archer` y
-      `dark_shaman` (ambos `ranged`) → `keepDistance`; `corrupted_minion`, `root_brute`,
-      `unstable_beast` → `close`. 2 tests nuevos; 109 tests totales verdes. Todavía falta el
-      wiring a `runtime.ts`/Phaser (instanciar sprites reales, spawnear los 5 tipos) — eso espera a
-      tener arte real de enemigo, sigue fuera de alcance de este documento hasta entonces.
+- [x] Completado (2026-07-30, parcial; corregido 2026-08-05): 8.4 (parte 2) mapeo real de
+      comportamientos. `resolveEnemyMovementStyle` sólo deriva `keepDistance` de la etiqueta
+      explícita `keep_distance`; `ranged` selecciona el perfil de ataque, pero no hace retroceder
+      al enemigo por sí solo. Los cinco enemigos actuales (`possessed_archer` y `dark_shaman`
+      incluidos) quedan en `close`; una futura zona puede optar por kite declarando
+      `keep_distance`. Sigue siendo dato → comportamiento, nunca id → comportamiento.
 - [x] Completado (2026-07-30): 8.5 proyectiles y telégrafos. Nuevo
       `packages/shared/src/projectiles.ts`: `Projectile` (posición por `atMs`, expira al alcanzar
       `maxRangePx`, `projectileHitsTarget` vía `targetWithinRadius`) y `Telegraph` (fase calculada
@@ -255,16 +289,98 @@ Presupuesto GOAL.md: 30-40 enemigos simultáneos a 60 FPS. Medir antes/después 
       liberarse, separado de la muerte misma (inmediata vía `decideEnemyState`) para dejar tiempo a
       una animación de muerte. 3 tests nuevos; 122 tests totales verdes. Sigue sin wiring a
       `runtime.ts` (no hay entidades de enemigo reales que limpiar todavía).
-- [-] Parcial (2026-07-30): 8.8 matriz de pruebas y presupuesto de rendimiento. 123 pruebas
-  verdes cubren todo el núcleo puro (8.1-8.7); nuevo test de presupuesto de rendimiento en
-  `enemy-simulation.test.ts` — 40 enemigos × 60 ticks (1 segundo simulado a 60 Hz) con
-  separación entre todos ellos corre en ~56ms de cómputo puro, muy por debajo del presupuesto.
-  **No** cerrado: sigue faltando el smoke real de navegador y el cierre en GOAL.md, porque no
-  hay assets de sprite de enemigo ni adaptador de Phaser todavía — no hay nada visual que
-  probar. `GOAL.md` (Paso 8) se actualizó para reflejar exactamente este estado (tareas
-  marcadas `[x]`/`[-]`/`[ ]` una por una, fila nueva en el Registro de progreso), sin marcar el
-  paso como completado.
-- [ ] Pendiente: el wiring a Phaser de 8.4-8.7 (requiere assets de enemigo) y el cierre real de 8.8.
+- [x] Completado (2026-08-04): 8.8 matriz de pruebas y presupuesto de rendimiento. 123 pruebas
+      verdes cubren todo el núcleo puro (8.1-8.7); nuevo test de presupuesto de rendimiento en
+      `enemy-simulation.test.ts` — 40 enemigos × 60 ticks (1 segundo simulado a 60 Hz) con
+      separación entre todos ellos corre en ~56ms de cómputo puro, muy por debajo del presupuesto.
+      **No** cerrado en el corte histórico: faltaban el smoke real de navegador y el adaptador de
+      Phaser. El wiring posterior y el smoke de 30-40 se documentan en las entradas 2026-08-03/04.
+- [x] Completado (2026-08-04): cierre visual y de rendimiento de 8.8. El adaptador cubre los
+      estados de enemigo aplicables (`idle/moving/attacking/casting/channeling/interacting/stunned/
+knocked_back/dead`), usa fallback seguro para arte parcial y deja `downed/reviving` al ciclo
+      de vida del Guardián. `ObjectPool` preasigna proyectiles/telegraphs/bursts y el smoke
+      `?enemyStress=40` verificó 600 muestras, p95/p99 y memoria estable.
+- [x] Completado (2026-07-30): comportamientos específicos por enemigo (parte lógica pura, camino
+      (a) de "Trabajo pendiente"). Nuevo `packages/shared/src/enemy-abilities.ts`: capa de abilities
+      que decide _qué hace un enemigo_ en `attack`/`use_ability` (la FSM ya decidía el estado, y
+      `stepEnemy` el movimiento). Cinco perfiles data-driven: `melee_strike`, `ranged_shot`
+      (Arquero: spawna proyectil hacia el blanco), `heal_allies` (Chamán: cura al aliado con menor
+      % de vida, tie-break por id para determinismo, ignora aliados casi full), `area_attack` (Bruto:
+      abre telégrafo + aturde), `telegraphed_explosion` (Bestia: anuncia su explosión antes de dañar).
+      Reusa `resolveAttack` simétrico y `targetWithinRadius`; daño de área/explosión se resuelve en
+      el tick de resolución vía `resolveEnemyTelegraph`, nunca durante la ventana de aviso. Nunca
+      deriva del id del enemigo. 16 tests nuevos. `resolveEnemyAbilityProfile` en `game-data` mapea
+      los `behaviors` tags de los 5 enemigos reales a su perfil con prioridad explícita (heal > area >
+      explosion > ranged > melee); 5 tests nuevos (3 de los 5 enemigos reales + 2 de prioridad).
+      Nuevo `enemyAbilityTuning` en el catálogo (radios, multiplicadores, telegraphMs) con
+      `GAME_DATA_VERSION`/`BALANCE_VERSION` → `2026.07.30.3`. 155 tests totales verdes,
+      typecheck/lint/format:check/build limpios. **Sigue sin wiring a Phaser** (requiere la decisión
+      de assets del usuario) — el objetivo de este milestone era desbloquear los criterios de
+      aceptación de comportamiento (Chamán prioriza aliados, Bestia no explota sin señal, Bruto
+      área/aturdimiento) sin tocar sprites, y eso quedó cumplido a nivel lógica pura y probada.
+- [x] Completado (2026-07-30): verificación del modo idle (auto-battle). El commit `83485b8`
+      (sesión previa, Claude Code) dejó el modo idle cableado en `runtime.ts`/`GameIsland.tsx` pero
+      **sin verificación en vivo**: el panel del navegador in-app dejó de renderizar a mitad de esa
+      sesión y no se pudo confirmar visualmente. Esta sesión lo cerró por **test determinista** en
+      vez de ojo humano: nuevo `apps/web/src/game/runtime-idle.test.ts` reproduce el bucle de
+      decisión exacto de `runtime.ts` (`autoBattle` → dummy vivo más cercano → moverse →
+      `activate('slash')` al estar en rango y sin cooldown) contra el `LocalCombatController` real,
+      y verifica que tras ~6s de ticks el Guardián cierra la distancia, gasta furia, cicla el
+      cooldown de slash y daña al dummy — todo sin input del jugador. 3 tests nuevos (cierre de
+      gap + furia/cooldown, no-op con todo muerto, selección del dummy más cercano). 158 tests
+      totales verdes. La verificación visual en navegador real sigue pendiente del usuario (el IAB
+      no despacha clicks en esta sesión), pero el comportamiento que el idle depende de está probado
+      y queda en CI de forma reproducible.
+- [x] Completado (2026-07-31): primer enemigo con arte propio wireado a Phaser. `root_brute` (el
+      único enemigo 128px del catálogo) se generó completo en PixelLab (27 gen: 3 base + 10 walk +
+      14 cross-punch como attack), se procesó con `pixellab-process-character.mjs` extendido, y se
+      integró a la presentación sin tocar el validador placeholder ni `runtime.ts`'s layout del
+      Guardián. Cambios: `pixellab-characters.ts` declara `rootBrute: PixelLabCharacter` (248×248,
+      idle/walk/basic_attack), `animations` pasó a `Partial` con nuevo helper `pickAnimation` que
+      hace fallback a `idle` cuando una animación mapeada no existe (el Bruto no tiene hit/death);
+      `enemy-visuals.ts` añade `character?` opcional a `EnemyVisual` (cuando está, el dummy usa el
+      arte propio sin tint; cuando no, sigue el camino darkKnight+tint — los otros 4 enemigos sin
+      tocar); `runtime.ts` precarga/crea animaciones de los enemigos con character via
+      `enemyCharactersToLoad()` (recorre el catálogo, así añadir arte a otro enemigo sólo toca
+      `enemy-visuals.ts`) y `addDummy` resuelve `visual.character ?? this.character`. 3 tests
+      nuevos (root_brute 3 anims a 248×248 + fallback pickAnimation, enemy-visuals character
+      asignado). **169 tests totales verdes**, typecheck/lint/format/build limpios. El dummy
+      root_brute ahora muestra el coloso de raíces en vez del Guardián tintado (verificación visual
+      pendiente del usuario en navegador real, como ya pasaba con darkKnight). Sigue siendo un dummy
+      estático del TestScene — el adaptador `apps/web/src/game/sim/` que instancie `stepEnemy` real
+      es trabajo posterior.
+- [x] Completado (2026-08-03, adaptador de habilidades): `apps/web/src/game/sim/enemy-sim.ts`
+      ahora deriva `EnemyAbilityProfile` y cooldown desde `GAME_DATA`; `runtime.ts` conecta los cinco
+      perfiles al resolver puro. Proyectiles se mueven/impactan por `projectilePositionAt` y
+      `projectileHitsTarget`; áreas y explosiones abren telegraph visible y resuelven únicamente en
+      el tick final; el Chamán cura aliados con clamp y el Bruto aplica stun local. Se añadió
+      `applyResolvedDamageTaken` para evitar doble mitigación y caps temporales de 24 proyectiles /
+      12 telegraphs. Pruebas específicas: 47/47 verdes; smoke IAB AUTO sin errores/warnings. Quedan
+      estados visuales avanzados para cerrar 8.8.
+
+- [x] Completado (2026-08-04, estados visuales mínimos): `apps/web/src/game/sim/enemy-visual-state.ts`
+      agrega el contrato puro de mapeo `idle/walk/attack` y latches temporales `stunned→hit` /
+      terminales `dead→death`. El runtime reinicia ataques por token sin reiniciar la animación en
+      cada frame, conserva `death` hasta retirar la entidad y hace fallback a `idle` cuando el
+      personaje no tiene el clip solicitado (por ejemplo `root_brute` no tiene `hit/death`). El
+      atributo `data-enemy-visual-states` queda sólo como contrato de smoke. 3 tests nuevos;
+      targeted 24/24; smoke IAB inicial `idle:3` y AUTO `attack:1`, un canvas y cero
+      errores/warnings. Pendientes: estados de ciclo de vida no aplicables al enemigo local
+      (`downed/reviving`) y animaciones dedicadas más allá del fallback de PixelLab.
+- [x] Completado (2026-08-04, pooling y stress): `apps/web/src/game/sim/object-pool.ts` entrega
+      leases acotados y reset completo; `runtime.ts` preasigna pools de `24` proyectiles, `12`
+      telegraphs y `64` bursts, recicla el mas antiguo al alcanzar capacidad y nunca crea un
+      `GameObject` dentro de `update()`. El harness `?enemyStress=40` mantiene 40 enemigos con
+      puntos seguros deterministas y publica metricas `data-*`: baseline de 3 enemigos p95 RAF
+      `5.700 ms`/update p95 `0.200 ms`/heap `123504090`, stress p95 RAF `5.700 ms`/p99 `5.800 ms`/
+      update p95 `0.500 ms`/heap `158770075`, 600 muestras. 7 tests nuevos; suite total 37/196.
+      Restan clips dedicados y los estados de ciclo de vida no aplicables al enemigo local.
+- [x] Completado (2026-08-04, mapeo visual avanzado): `enemyAiVisualState` ahora cubre los nueve
+      estados de IA (`patrol/detect/use_ability/retreat` incluidos) y distingue `casting` de
+      `channeling` según el perfil; `knockback` tiene una reacción temporal propia. `mapState` y
+      `pickAnimation` conservan el fallback seguro para `root_brute` y clips ausentes. 5 tests del
+      adaptador cubren el contrato; `downed/reviving` quedan reservados al ciclo de vida de otras
+      entidades y no se inventan como estados de enemigo.
 
 ## Pruebas
 
@@ -320,28 +436,82 @@ documento queda marcado `[x]` sólo con test o verificación manual nombrada, nu
   que ahora sí tiene dos consumidores reales y completos (FSM + steering) para integrar en vez de
   uno hipotético.
 
-## Trabajo pendiente
+## Estado actual y cierre (2026-08-04)
+
+El Paso 8 está cerrado en `GOAL.md`. El runtime local instancia los cinco enemigos, mantiene
+spawn/cleanup/respawn continuo, resuelve sus cinco perfiles de habilidad y publica los estados
+visuales aplicables hasta la limpieza. El Arquero usa el arte `ranger` existente con `hit/death`, el
+Bruto usa `root_brute` y los otros tres conservan tintes placeholder explícitos. `downed/reviving`
+son estados del ciclo de vida del Guardián y no se fuerzan en enemigos cuya muerte es terminal.
+
+Los clips dedicados de los tres placeholders restantes son una mejora opcional del Paso 18, no un
+bloqueo de jugabilidad ni motivo para reabrir el Paso 8. El siguiente paso autorizado por
+`GOAL.md` es el Paso 9, pero se inicia en una sesión separada después de esta verificación.
+
+## Trabajo pendiente (historial)
+
+### Actualizacion de estado (2026-08-03)
+
+El adaptador local ya existe en `apps/web/src/game/runtime.ts`: instancia una composición de cinco
+tipos, ejecuta el movimiento, retira entidades derrotadas y mantiene un ciclo de cleanup/respawn
+seguro mediante `packages/shared/src/enemy-spawn.ts`. También conecta los cinco perfiles de habilidad:
+melee, proyectil, curación de aliados, área telegrafiada y explosión telegrafiada. El daño de
+telegraph se resuelve sólo al finalizar el aviso; proyectiles y telegraphs tienen caps locales de
+seguridad. Los estados visuales mínimos ya están conectados: `idle`, `walk`, `attack`, reacción
+`hit` temporal, `knockback` y `death` hasta cleanup, con `casting/channeling/interacting` según IA
+y perfil, y fallback a `idle` cuando falta arte. Esta capa todavía no cierra el Paso 8: quedan
+clips dedicados opcionales; pooling y stress real de 30-40 entidades ya estan verificados. El
+preview usa `CAMERA_ZOOM = 1.6 / 1.3` para mostrar 30% más
+mundo alrededor del Guardián, sin alterar la simulación. Las notas históricas de abajo describen el
+bloqueo anterior y se conservan para no perder decisiones; para el orden operativo actual manda
+`docs/plans/luna-continuation-plan.md`.
 
 Al cerrar esta sesión sin poder cerrar 8.8 del todo, este documento queda como fuente de verdad
-para continuar sin releer todo el historial de la sesión que lo escribió. Estado real: todo el
-núcleo puro de 8.0-8.7 está implementado, probado (123 tests) y documentado — FSM de IA, steering,
-`SimulationWorld` (`stepEnemy`), mapeo de comportamiento a estilo de movimiento para los 5 enemigos
-reales, proyectiles/telégrafos, élites, y ciclo de vida de muerte/recompensas. Lo que falta, en
-orden de bloqueo:
+para continuar sin releer todo el historial de la sesión que lo escribió. Estado real: el núcleo
+puro de 8.0-8.7 y el adaptador local de perfiles están implementados, probados y documentados.
+Lo que falta, en orden de bloqueo actual:
 
-1. **Assets de sprite para los 5 enemigos** (bloqueante duro — nada de lo siguiente tiene sentido
-   sin esto). Requiere una decisión de presupuesto/plan de PixelLab explícita del usuario, igual
-   que se hizo para el Guardián/Ranger en la fase de scaffolding.
-2. El adaptador de Phaser (`apps/web/src/game/sim/`: `world.ts`, `entities.ts`, `projectiles.ts`,
-   `telegraphs.ts`) que instancia los sprites, corre `stepEnemy` en el `update()` de la escena y
-   dibuja proyectiles/telégrafos reales.
-3. Comportamientos específicos por enemigo que van más allá de melee-vs-ranged genérico: el Chamán
-   priorizando aliados válidos (`heal_allies`/`buff_allies`), la Bestia con su telégrafo de
-   explosión atado (`telegraphed_explosion`), el Bruto con área/aturdimiento (`area_attack`/
-   `stun`) — los primitivos genéricos ya existen (`projectiles.ts`, `Telegraph`), falta conectarlos
-   a estos comportamientos concretos.
-4. Smoke real de navegador (equivalente al que cerró el Paso 7) y el cierre final en `GOAL.md`
-   (Estado del Paso 8 → `[x]`, última fila del Registro).
+El arte propio para los cinco enemigos es una mejora opcional: el runtime usa `PixelLabCharacter`
+cuando existe (`root_brute`) y fallback tintado para los demás. Los puntos 1 y 2 siguientes
+conservan el historial de assets/Bruto, pero ya no bloquean el adaptador ni el primer pendiente.
+
+1. **Assets de sprite para los 5 enemigos** — el flujo está probado de punta a punta. Generar
+   cada personaje base cuesta **3 generaciones** (v3 from-scratch); cada estado de animación extra
+   (walk, attack) suma **~8-14 generaciones** vía `/characters/animations` (template mode, 1
+   gen/dirección, 8 dirs). Un enemigo completo (idle+walk+attack) cuesta **~27 generaciones**.
+   `root_brute` ya está generado completo (27 gen, ver Decisiones). Balance PixelLab: **13/40
+   restantes** — alcanza para ~0-1 enemigos más completos, o varios idle-only, o walk+attack del
+   Bruto si hiciera falta regenerar. `character_id` del Bruto: `30be0b1d-2633-4cec-ba44-13a57cb72379`.
+   1b. **Post-procesador adaptado** (HECHO 2026-07-31): `pixellab-process-character.mjs` extendido con
+   `--three-dir` y `--state-map`, e idle sintetizado desde `rotations`. Probado contra el ZIP real
+   del Bruto: produce 9 spritesheets + manifiesto en formato `PixelLabCharacter` (idéntico al de
+   `dark_knight`). **NO hace falta tocar el validador `assets.ts` ni `runtime.ts` del placeholder
+   del Guardián** — los enemigos van por el camino `PixelLabCharacter` ya existente en
+   `pixellab-characters.ts` (contrato separado, frame counts variables, 3 dirs generadas). La
+   conclusión previa ("hay que reescribir el validador") era prematura: no se había visto
+   `pixellab-characters.ts` todavía.
+2. **Wiring del Bruto a Phaser** (bloqueo histórico de arte, ya resuelto parcialmente): declarar un `rootBrute:
+PixelLabCharacter` en `pixellab-characters.ts` (análogo a `darkKnight`), cargar sus sheets en
+   el preloader del `TestScene` (junto a `darkKnight`), y conectarlo al futuro adaptador de
+   enemigos (`apps/web/src/game/sim/`). El arte ya está en `public/assets/characters/root_brute/`.
+3. **HECHO 2026-08-04:** completar el mapeo `idle/walk/attack/hit/death` y los estados avanzados
+   (`interacting`, `casting`, `channeling`, `knockback`) con fallback documentado cuando el
+   spritesheet no exista. `downed/reviving` quedan reservados a ciclos de vida que no aplican al
+   enemigo local.
+4. **HECHO 2026-08-04:** reemplazar los caps temporales por pools de `24/12/64` con reset
+   completo y ejecutar stress `?enemyStress=40`; ver evidencia de p95/memoria arriba. Queda el
+   cierre de estados avanzados.
+5. **Smoke HECHO 2026-08-04:** preview normal y `?enemyStress=40` verificados; el cierre final en
+   `GOAL.md` (Estado del Paso 8 → `[x]`, última fila del Registro) queda para la revisión de clips
+   dedicados opcionales, no para el funcionamiento del runtime.
+
+**Nota de continuidad (2026-08-03)**: el wiring de perfiles y el smoke local ya fueron autorizados
+y ejecutados en el loop actual; el bloque de decisión que sigue es histórico y no debe reabrirse
+para los pendientes de estados/pooling.
+
+**Actualizacion 2026-08-04**: pooling, stress y mapeo visual avanzado ya no son pendientes del
+adaptador local; quedaron implementados y medidos. El siguiente trabajo opcional es generar clips
+dedicados/finales, siempre sin avanzar al Paso 9.
 
 **Punto de decisión explícito para el próximo loop**: al llegar acá se le presentaron al usuario
 tres caminos posibles y el usuario cortó la pregunta pidiendo en cambio que quedara documentado

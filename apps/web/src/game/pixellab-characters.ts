@@ -27,7 +27,12 @@ export type PixelLabCharacter = Readonly<{
   frameHeight: number;
   /** Feet-relative origin: the art has empty headroom, so the sprite anchors on its bottom edge. */
   origin: Readonly<{ x: number; y: number }>;
-  animations: Readonly<Record<PixelLabAnimationName, PixelLabAnimation>>;
+  /**
+   * Partial on purpose: not every character generates all five animations (e.g. an enemy may ship
+   * only idle/walk/basic_attack). `mapState` falls back to `idle` when the mapped animation is
+   * missing, so a character is never left without a frame to show.
+   */
+  animations: Readonly<Partial<Record<PixelLabAnimationName, PixelLabAnimation>>>;
 }>;
 
 function sheets(
@@ -65,6 +70,41 @@ export const darkKnight: PixelLabCharacter = Object.freeze({
   }),
 });
 
+/** Mirrors `apps/web/public/assets/characters/ranger/metadata/manifest.json`. */
+export const ranger: PixelLabCharacter = Object.freeze({
+  id: 'ranger',
+  displayName: 'Ranger',
+  frameWidth: 92,
+  frameHeight: 92,
+  origin: { x: 0.5, y: 0.86 },
+  animations: Object.freeze({
+    idle: { frameRate: 6, repeat: -1, sheets: sheets('ranger', 'idle', 4) },
+    walk: { frameRate: 10, repeat: -1, sheets: sheets('ranger', 'walk', 8) },
+    basic_attack: { frameRate: 12, repeat: 0, sheets: sheets('ranger', 'basic_attack', 7) },
+    hit: { frameRate: 10, repeat: 0, sheets: sheets('ranger', 'hit', 6) },
+    death: { frameRate: 8, repeat: 0, sheets: sheets('ranger', 'death', 7) },
+  }),
+});
+
+/**
+ * The approved Bruto sprite (user-provided upload, 2026-08-04). Mirrors
+ * `apps/web/public/assets/characters/root_brute/metadata/manifest.json`.
+ * Only idle/walk/basic_attack are authored today; every frame uses the same approved reference
+ * until directional animation art is supplied, so an unrelated fallback sprite can never appear.
+ */
+export const rootBrute: PixelLabCharacter = Object.freeze({
+  id: 'root_brute',
+  displayName: 'Bruto de raíces',
+  frameWidth: 248,
+  frameHeight: 248,
+  origin: { x: 0.5, y: 0.86 },
+  animations: Object.freeze({
+    idle: { frameRate: 6, repeat: -1, sheets: sheets('root_brute', 'idle', 1) },
+    walk: { frameRate: 10, repeat: -1, sheets: sheets('root_brute', 'walk', 6) },
+    basic_attack: { frameRate: 12, repeat: 0, sheets: sheets('root_brute', 'basic_attack', 6) },
+  }),
+});
+
 export type DirectionMapping = Readonly<{ sheet: PixelLabDirection; flipX: boolean }>;
 
 /**
@@ -91,6 +131,22 @@ export function mapState(state: LocalCharacterState): PixelLabAnimationName {
   return 'idle';
 }
 
+/**
+ * The animation to play for a character in a given state, with a fallback to `idle` (and then to
+ * whichever animation exists) when the mapped one wasn't generated for that character. Needed
+ * because `PixelLabCharacter.animations` is `Partial` — an enemy may ship only idle/walk/attack.
+ */
+export function pickAnimation(
+  character: PixelLabCharacter,
+  state: LocalCharacterState,
+): PixelLabAnimationName {
+  const mapped = mapState(state);
+  if (character.animations[mapped] !== undefined) return mapped;
+  if (character.animations.idle !== undefined) return 'idle';
+  // Last resort: the first animation that exists (a character always has at least one).
+  return Object.keys(character.animations)[0] as PixelLabAnimationName;
+}
+
 /** Stable Phaser texture/animation key for one character + animation + generated direction. */
 export function pixelLabKey(
   character: PixelLabCharacter,
@@ -106,12 +162,95 @@ export function pixelLabSheetsToLoad(
 ): readonly Readonly<{ key: string; path: string; frameWidth: number; frameHeight: number }>[] {
   const names = Object.keys(character.animations) as PixelLabAnimationName[];
   const directions: readonly PixelLabDirection[] = ['north', 'south', 'east'];
-  return names.flatMap((name) =>
-    directions.map((direction) => ({
+  return names.flatMap((name) => {
+    const animation = character.animations[name];
+    if (animation === undefined) return [];
+    return directions.map((direction) => ({
       key: pixelLabKey(character, name, direction),
-      path: character.animations[name].sheets[direction].path,
+      path: animation.sheets[direction].path,
       frameWidth: character.frameWidth,
       frameHeight: character.frameHeight,
-    })),
-  );
+    }));
+  });
+}
+
+/**
+ * Layer path variant. Layered characters keep their sheets under `layers/` with the layer name in
+ * the filename, so a merged character and a layered one can coexist in the same asset tree.
+ */
+function layerSheets(
+  character: string,
+  layer: string,
+  animation: string,
+  frameCount: number,
+): PixelLabAnimation['sheets'] {
+  const directions: readonly PixelLabDirection[] = ['north', 'south', 'east'];
+  return Object.freeze(
+    Object.fromEntries(
+      directions.map((direction) => [
+        direction,
+        {
+          path: `/assets/characters/${character}/layers/${character}_${layer}_${animation}_${direction}.png`,
+          frameCount,
+        },
+      ]),
+    ),
+  ) as PixelLabAnimation['sheets'];
+}
+
+export type CharacterLayerName = 'body' | 'armor' | 'weapon';
+
+/**
+ * A character drawn as separate, pixel-aligned layers.
+ *
+ * Each layer is an ordinary `PixelLabCharacter` with its own id, which is the point: the loader,
+ * the animation registration and the frame contract all work on it unchanged. Stacking three
+ * sprites on one origin is what finally lets equipped gear be real art instead of the translucent
+ * rarity-tinted vector shapes `renderEquipmentVisuals` falls back to for merged characters.
+ */
+export type LayeredCharacter = Readonly<{
+  id: string;
+  displayName: string;
+  body: PixelLabCharacter;
+  armor: PixelLabCharacter;
+  weapon: PixelLabCharacter;
+}>;
+
+function hunterLayer(layer: CharacterLayerName): PixelLabCharacter {
+  const id = `hunter_${layer}`;
+  return Object.freeze({
+    id,
+    displayName: `Cazadora (${layer})`,
+    frameWidth: 92,
+    frameHeight: 92,
+    origin: { x: 0.5, y: 0.86 },
+    animations: Object.freeze({
+      idle: { frameRate: 6, repeat: -1, sheets: layerSheets('hunter', layer, 'idle', 4) },
+      walk: { frameRate: 10, repeat: -1, sheets: layerSheets('hunter', layer, 'walk', 8) },
+      basic_attack: {
+        frameRate: 12,
+        repeat: 0,
+        sheets: layerSheets('hunter', layer, 'basic_attack', 7),
+      },
+      hit: { frameRate: 10, repeat: 0, sheets: layerSheets('hunter', layer, 'hit', 6) },
+      death: { frameRate: 8, repeat: 0, sheets: layerSheets('hunter', layer, 'death', 7) },
+    }),
+  });
+}
+
+/**
+ * Mirrors `apps/web/public/assets/characters/hunter/metadata/hunter_*.json`. Generated by the rig
+ * in `scripts/aseprite-gen/` — see that directory's README for the measurements it is built from.
+ */
+export const hunter: LayeredCharacter = Object.freeze({
+  id: 'hunter',
+  displayName: 'Cazadora',
+  body: hunterLayer('body'),
+  armor: hunterLayer('armor'),
+  weapon: hunterLayer('weapon'),
+});
+
+/** Every layer of a layered character, in back-to-front render order. */
+export function layeredCharacterSheets(character: LayeredCharacter): readonly PixelLabCharacter[] {
+  return [character.body, character.armor, character.weapon];
 }

@@ -19,4 +19,17 @@ describe('enemy visuals', () => {
       expect(tint).toBeLessThanOrEqual(0xffffff);
     }
   });
+
+  it('gives generated art to the Bruto and Arquero, with safe tint fallbacks for the rest', () => {
+    expect(ENEMY_VISUALS.root_brute.character?.id).toBe('root_brute');
+    expect(ENEMY_VISUALS.possessed_archer.character?.id).toBe('ranger');
+    const withoutOwnArt: Array<[string, boolean]> = Object.entries(ENEMY_VISUALS)
+      .filter(([id]) => id !== 'root_brute' && id !== 'possessed_archer')
+      .map(([id, visual]) => [id, visual.character === undefined]);
+    expect(withoutOwnArt).toEqual([
+      ['corrupted_minion', true],
+      ['dark_shaman', true],
+      ['unstable_beast', true],
+    ]);
+  });
 });

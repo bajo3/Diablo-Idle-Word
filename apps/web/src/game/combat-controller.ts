@@ -3,6 +3,7 @@ import {
   advanceGuardianCombat,
   applyBattleThirst,
   applyDamageTaken,
+  applyResolvedDamageTaken,
   applySuccessfulHit,
   createGuardianCombatState,
   resolvePhysicalDamage,
@@ -10,6 +11,7 @@ import {
   targetWithinRadius,
   tryActivateAbility,
   type CombatVector,
+  type EnemyAbilityTarget,
   type GuardianAbilityKey,
   type GuardianCombatState,
   type GuardianCombatTuning,
@@ -24,7 +26,7 @@ export type CombatEvent =
   | Readonly<{
       type: 'abilityRejected';
       ability: GuardianAbilityKey;
-      reason: 'cooldown' | 'fury' | 'busy';
+      reason: 'cooldown' | 'fury' | 'downed' | 'busy';
     }>
   | Readonly<{
       type: 'damageApplied';
@@ -42,6 +44,7 @@ export type CombatEvent =
 export type CombatHudSnapshot = Readonly<{
   health: number;
   maxHealth: number;
+  downed: boolean;
   fury: number;
   maxFury: number;
   cooldownRemainingMs: Readonly<Record<GuardianAbilityKey, number>>;
@@ -122,6 +125,7 @@ type PendingImpact = Readonly<{
 
 /** Local application adapter: it owns test dummies and invokes the reusable pure rules. */
 export class LocalCombatController {
+  private tuning: GuardianCombatTuning = guardianCombatTuning;
   private state: GuardianCombatState = createGuardianCombatState(guardianCombatTuning);
   private previousAt: number;
   private readonly targets = new Map<string, DummyTarget>();
@@ -141,11 +145,104 @@ export class LocalCombatController {
     this.previousAt = clock.now();
   }
 
+  /**
+   * Rebinds combat to a specific character's server-authoritative level and attributes, replacing
+   * the catalog's fixed reference Guardian. This is what makes levelling and spending attribute
+   * points change how the character actually fights instead of only how the sheet reads.
+   *
+   * Health is carried across as a *fraction*, not an absolute: raising Vitality mid-run must not
+   * heal, and lowering it must not instantly down a character who was at full health. A downed
+   * character stays downed (0/anything is still 0), so this can never double as a revive.
+   */
+  public applyCharacterProfile(
+    profile: Readonly<{
+      level: number;
+      strength: number;
+      dexterity: number;
+      vitality: number;
+      /** Flat bonuses summed from equipped gear — see `GuardianCombatTuning`'s own fields. */
+      armorBonus?: number;
+      physicalDamageBonus?: number;
+      maxHealthBonus?: number;
+      criticalChanceBonus?: number;
+    }>,
+  ): void {
+    const next: GuardianCombatTuning = {
+      ...this.tuning,
+      level: profile.level,
+      strength: profile.strength,
+      dexterity: profile.dexterity,
+      vitality: profile.vitality,
+      armorBonus: profile.armorBonus ?? 0,
+      physicalDamageBonus: profile.physicalDamageBonus ?? 0,
+      maxHealthBonus: profile.maxHealthBonus ?? 0,
+      criticalChanceBonus: profile.criticalChanceBonus ?? 0,
+    };
+    if (
+      next.level === this.tuning.level &&
+      next.strength === this.tuning.strength &&
+      next.dexterity === this.tuning.dexterity &&
+      next.vitality === this.tuning.vitality &&
+      next.armorBonus === this.tuning.armorBonus &&
+      next.physicalDamageBonus === this.tuning.physicalDamageBonus &&
+      next.maxHealthBonus === this.tuning.maxHealthBonus &&
+      next.criticalChanceBonus === this.tuning.criticalChanceBonus
+    )
+      return;
+    const healthFraction = this.state.maxHealth > 0 ? this.state.health / this.state.maxHealth : 0;
+    const rebuilt = createGuardianCombatState(next);
+    this.tuning = next;
+    this.state = {
+      ...this.state,
+      armor: rebuilt.armor,
+      maxHealth: rebuilt.maxHealth,
+      health: Math.min(rebuilt.maxHealth, Math.round(rebuilt.maxHealth * healthFraction)),
+    };
+  }
+
   public addDummy(target: DummyTarget): void {
     this.targets.set(target.id, target);
   }
   public getTargets(): readonly DummyTarget[] {
     return [...this.targets.values()];
+  }
+  /**
+   * Removes a defeated target from the authoritative combat map. Pending Guardian impacts are
+   * resolved against the current map, so an entity removed during its death window cannot receive
+   * a late hit. Repeated cleanup is intentionally idempotent for the Phaser adapter.
+   */
+  public removeDummy(id: string): boolean {
+    return this.targets.delete(id);
+  }
+  /**
+   * Replaces a dummy's position immutably (same object-replacement pattern the knockback resolution
+   * uses internally), so the enemy AI adapter can drive chase/retreat without exposing the internal
+   * Map. No-op for an unknown id. Used by the Paso 8.4 enemy-sim adapter to move enemies.
+   */
+  public repositionDummy(id: string, position: CombatVector): void {
+    const target = this.targets.get(id);
+    if (target === undefined) return;
+    this.targets.set(id, { ...target, position });
+  }
+  /** Snapshot of the Guardian in the shared attacker/defender shape used by enemy abilities. */
+  public guardianAbilityTarget(position: CombatVector): EnemyAbilityTarget {
+    const now = this.clock.now();
+    const ironSkinActive =
+      this.state.ironSkinStartsAt !== undefined &&
+      this.state.ironSkinStartsAt <= now &&
+      this.state.ironSkinEndsAt !== undefined &&
+      this.state.ironSkinEndsAt > now;
+    const ironSkinMultiplier = this.tuning.abilities.ironSkin.damageTakenMultiplier;
+    return {
+      id: 'guardian',
+      position,
+      armor: this.state.armor,
+      health: this.state.health,
+      maxHealth: this.state.maxHealth,
+      ...(ironSkinActive && ironSkinMultiplier !== undefined
+        ? { incomingDamageMultiplier: ironSkinMultiplier }
+        : {}),
+    };
   }
   /**
    * Applies incoming damage to the Guardian himself, through the same pure `applyDamageTaken`
@@ -154,7 +251,7 @@ export class LocalCombatController {
    */
   public applyIncomingDamage(rawAmount: number, at: number = this.clock.now()): CombatEvent[] {
     const before = this.state;
-    this.state = applyDamageTaken(guardianCombatTuning, this.state, rawAmount, at);
+    this.state = applyDamageTaken(this.tuning, this.state, rawAmount, at);
     if (this.state.health === before.health) return [];
     return [
       {
@@ -165,13 +262,55 @@ export class LocalCombatController {
       },
     ];
   }
+  /** Applies a final amount produced by `resolveAttack` exactly once. */
+  public applyResolvedIncomingDamage(
+    resolvedAmount: number,
+    at: number = this.clock.now(),
+  ): CombatEvent[] {
+    const before = this.state;
+    this.state = applyResolvedDamageTaken(this.tuning, this.state, resolvedAmount, at);
+    if (this.state.health === before.health) return [];
+    return [
+      {
+        type: 'selfDamaged',
+        amount: before.health - this.state.health,
+        health: this.state.health,
+        maxHealth: this.state.maxHealth,
+      },
+    ];
+  }
+  /** Applies a data-driven ally heal while clamping to the target's declared maximum. */
+  public healDummy(id: string, amount: number): boolean {
+    const target = this.targets.get(id);
+    if (target === undefined || target.health <= 0) return false;
+    const nextHealth = Math.min(target.maxHealth, target.health + Math.max(0, Math.round(amount)));
+    if (nextHealth === target.health) return false;
+    this.targets.set(id, { ...target, health: nextHealth });
+    return true;
+  }
+  /**
+   * Restores Guardian health, clamped to his maximum. A downed Guardian is deliberately excluded:
+   * standing back up is a revive, which is its own authority — a potion must never double as one.
+   * Returns the health actually restored so the caller can decide whether a charge was spent.
+   */
+  public healGuardian(amount: number): number {
+    if (this.state.health === 0) return 0;
+    const restored = Math.min(
+      this.state.maxHealth - this.state.health,
+      Math.max(0, Math.round(amount)),
+    );
+    if (restored === 0) return 0;
+    this.state = { ...this.state, health: this.state.health + restored };
+    return restored;
+  }
   public snapshot(): CombatHudSnapshot {
     const now = this.clock.now();
     return {
       health: this.state.health,
       maxHealth: this.state.maxHealth,
+      downed: this.state.health === 0,
       fury: this.state.fury,
-      maxFury: guardianCombatTuning.maxFury,
+      maxFury: this.tuning.maxFury,
       cooldownRemainingMs: Object.fromEntries(
         abilityKeys.map((ability) => [
           ability,
@@ -184,9 +323,7 @@ export class LocalCombatController {
         this.state.ironSkinEndsAt !== undefined &&
         this.state.ironSkinEndsAt > now,
       movementMultiplier:
-        this.whirlwindEndsAt > now
-          ? (guardianCombatTuning.abilities.whirlwind.movementMultiplier ?? 1)
-          : 1,
+        this.whirlwindEndsAt > now ? (this.tuning.abilities.whirlwind.movementMultiplier ?? 1) : 1,
     };
   }
   public activate(
@@ -198,7 +335,7 @@ export class LocalCombatController {
     const at = this.clock.now();
     if (this.seenExecutions.has(executionId)) return [];
     if (at < this.actionEndsAt) return [{ type: 'abilityRejected', ability, reason: 'busy' }];
-    const result = tryActivateAbility(guardianCombatTuning, this.state, {
+    const result = tryActivateAbility(this.tuning, this.state, {
       ability,
       executionId,
       at,
@@ -206,7 +343,7 @@ export class LocalCombatController {
     if (!result.accepted) return [{ type: 'abilityRejected', ability, reason: result.reason }];
     this.seenExecutions.add(executionId);
     this.state = result.state;
-    const config = guardianCombatTuning.abilities[ability];
+    const config = this.tuning.abilities[ability];
     const actionDuration = config.recoveryMs ?? config.durationMs ?? config.impactMs ?? 0;
     this.actionEndsAt = at + actionDuration;
     this.executionEndsAt.set(executionId, this.actionEndsAt);
@@ -226,7 +363,7 @@ export class LocalCombatController {
   }
   public update(actorPosition?: CombatVector): readonly CombatEvent[] {
     const now = this.clock.now();
-    this.state = advanceGuardianCombat(guardianCombatTuning, this.state, this.previousAt, now);
+    this.state = advanceGuardianCombat(this.tuning, this.state, this.previousAt, now);
     this.previousAt = now;
     const events: CombatEvent[] = [];
     const due = this.pending
@@ -253,7 +390,7 @@ export class LocalCombatController {
     return events;
   }
   private resolveImpact(impact: PendingImpact, actorPosition?: CombatVector): CombatEvent[] {
-    const config = guardianCombatTuning.abilities[impact.ability];
+    const config = this.tuning.abilities[impact.ability];
     const origin =
       impact.ability === 'whirlwind' && actorPosition !== undefined ? actorPosition : impact.origin;
     const targets = [...this.targets.values()]
@@ -276,7 +413,7 @@ export class LocalCombatController {
       if (this.resolvedImpactKeys.has(key)) continue;
       this.resolvedImpactKeys.add(key);
       const damage = resolvePhysicalDamage(
-        guardianCombatTuning,
+        this.tuning,
         target.armor,
         config.damageMultiplier,
         this.random,
@@ -313,7 +450,7 @@ export class LocalCombatController {
         });
       if (next.health === 0) {
         this.state = applyBattleThirst(
-          guardianCombatTuning,
+          this.tuning,
           this.state,
           `${impact.executionId}:${target.id}`,
           impact.at,
@@ -321,8 +458,7 @@ export class LocalCombatController {
         events.push({ type: 'targetDefeated', targetId: target.id, position: nextPosition });
       }
     }
-    if (hit)
-      this.state = applySuccessfulHit(guardianCombatTuning, this.state, impact.ability, impact.at);
+    if (hit) this.state = applySuccessfulHit(this.tuning, this.state, impact.ability, impact.at);
     return events;
   }
 }

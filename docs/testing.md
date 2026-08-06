@@ -82,9 +82,82 @@ docker compose config
 - Integración: introspecciones concurrentes no emiten `Set-Cookie` ni cambian la fila de sesión;
   `/api/status` permanece accesible y mantenimiento devuelve `503 maintenance` para mutaciones.
 
+## Paso 9 — persistencia y autoridad de interacción del Bosque
+
+- `pnpm test`: 51 archivos y 261 pruebas unitarias/UI, incluyendo el round-trip del envelope V1,
+  el contrato V2 de interacción (estado, duración, interrupción, cooldown y resultado), el estado
+  no terminal del Guardián derribado y el estado/tick autoritativo de instancia con movimiento
+  normalizado, party de cuatro miembros, snapshots/enemigos compartidos y autoridad de combate
+  idempotente (cooldown, alcance, Furia, ownership, replay, arco/radio, multiobjetivo,
+  self-targeted e impactos diferidos por `impactMs`/`tickOffsetsMs`), además de la FSM/steering y
+  ataques server-side de los cinco perfiles de enemigo, cleanup/respawn determinista, objetivos
+  server-owned del Bosque (unicidad, rango y réplica a la party) y reanimación autoritativa
+  (destinatario persistido, interrupción por daño y finalización idempotente).
+- `pnpm test:integration`: 2 archivos y 20 pruebas sobre PostgreSQL efímero, desde migración vacía;
+  cubre tabla/backfill, ownership, guardado, revisión obsoleta, ledger idempotente de efectos, ruta
+  GET autenticada y los flujos WebSocket de intención, party de dos clientes, snapshots, replay,
+  payload no confiable, secuencia obsoleta y un ataque server-side con resultado pendiente/final
+  replicado a ambos clientes.
+- `pnpm db:generate`, `prisma validate`, `prisma format --check`, `pnpm lint`, `pnpm typecheck` y
+  `pnpm build`: correctos. El build conserva sólo el warning conocido del chunk runtime grande de
+  Vite; no hay error de compilación.
+
+## Evidencia actual del Paso 14
+
+La recompensa de derrota tiene cobertura de persistencia y transporte: la integracion PostgreSQL
+aplica XP/oro/materiales y progreso del Bosque, repite el mismo `operationId` sin duplicar saldos y
+rechaza un hash conflictivo; la integracion WebSocket derrota un enemigo en una instancia
+autoritativa y recibe `REWARD_GRANTED` con deltas string y `RewardLog` unico. El fixture de enemigo
+con vida reducida es exclusivo del arnes y no cambia el catalogo de produccion. Los drops de objetos
+siguen fuera de este bloque.
+
+En este corte, la verificacion completa queda en `pnpm test` (53 archivos/268 pruebas) y
+`pnpm test:integration` (2 archivos/22 pruebas).
+
+### Presentación de eventos del Paso 14 (2026-08-04)
+
+- `apps/web/src/game/game-events.test.ts` valida `REWARD_GRANTED`, rechaza campos extra/deltas
+  negativos y comprueba deduplicación del feed.
+- `apps/web/src/game/game-session.test.ts` cubre endpoint `ws/wss`, JSON inválido, límite de
+  reconexión y cierre explícito.
+- `apps/web/src/game/GameHudOverlay.test.tsx` verifica que loot/notificaciones dinámicos reemplazan
+  fixtures, y `GameIsland.test.tsx` conserva ciclo de vida y buffer pre-montaje.
+- Ejecución focalizada: `pnpm exec vitest run apps/web/src/game/game-events.test.ts
+apps/web/src/game/game-session.test.ts apps/web/src/game/GameHudOverlay.test.tsx
+apps/web/src/game/GameIsland.test.tsx` (15/15) y `pnpm --filter @brecha/web typecheck` (0).
+
+`enemy-authority.test.ts` cubre determinismo melee, proyectil con impacto posterior y bloqueo ante
+un Guardián derribado. El tick de aplicación avanza la instancia una sola vez por `instanceId`, por lo
+que una party de cuatro no multiplica ataques enemigos. Los efectos de área quedan anunciados en la
+cola de telégrafos y todavía requieren un evento visual de red para cerrar la presentación.
+
+La reconexión está cubierta por la integración WebSocket de party: el líder se desconecta y vuelve a
+recibir `PARTY_SNAPSHOT`/`INSTANCE_SNAPSHOT` autoritativos tanto en lobby como con la instancia
+activa; el registro de instancia también prueba que el tick y las interacciones pendientes avanzan
+sin un comando nuevo. `traffic-metrics.test.ts` cubre conteo UTF-8, tasas, p95 acotado, reset y
+ventanas inválidas. La métrica operativa se consulta con `GET /api/metrics/network` bajo sesión.
+
 ## Convenciones
 
 - Mantener tests deterministas y sin red externa.
+
+## Evidencia del Paso 19 — calidad, rendimiento y seguridad (2026-08-04)
+
+- Evidencia del Paso 19 (2026-08-04): `pnpm test` completó 69 archivos y 306 pruebas unitarias/UI;
+  `pnpm test:integration` completó 7 archivos y 30 pruebas PostgreSQL, incluyendo ownership,
+  transacciones serializables, replay de recompensas/drop, cuatro miembros, lobbies aislados,
+  reconexión WebSocket y un modo ausente retomado después de reconstruir el servidor.
+- `pnpm typecheck`, `pnpm lint`, `pnpm build` y `pnpm format:check` fueron correctos. La validación de
+  assets informó 7 entradas y 848.215 bytes. El rate limiter verifica fail-closed y capacidad
+  máxima; el stress harness y Arcade debug quedan gated por `import.meta.env.MODE` en producción.
+- El smoke de producción en Chrome/Firefox conserva tres enemigos, cinco sliders de ajustes y no
+  publica métricas internas. Los 401 de `/api/auth/session` son la comprobación esperada de sesión
+  anónima, no una excepción; Firefox puede mostrar una advertencia de teardown de Phaser al navegar,
+  sin `pageerror`, `window.onerror` ni requests fallidos. Diez rutas UI mantuvieron un `main`, botones
+  con nombre accesible y campos con `label`/`aria-label`.
+
+## Convenciones (continuaciÃ³n)
+
 - Inyectar reloj, RNG, almacenamiento y transporte cuando aparezcan.
 - Evitar sleeps; esperar estados observables.
 - Una regresión debe tener una prueba que falle antes del arreglo.
@@ -109,3 +182,21 @@ Sesión del 2026-07-29:
   `healthy`; luego se detuvo con `pnpm db:stop`, preservando el volumen local.
 
 No quedaron servidores de desarrollo ni contenedores del proyecto en ejecución.
+
+## Evidencia del Paso 20 — staging y recuperación (2026-08-04)
+
+- `docker-compose.staging.yml` validó con `docker compose ... config --quiet` y construyó las imágenes
+  de `migrate`, `server` y `web` desde el lockfile congelado.
+- El servicio one-shot aplicó las 12 migraciones y ejecutó el seed idempotente; PostgreSQL, Fastify y
+  nginx quedaron `healthy` en los puertos configurables 5433/3002/8080.
+- `pnpm staging:smoke` comprobó HTML, favicon, `/health`, protocolo 1, `GAME_DATA_VERSION` y CORS.
+- `pnpm staging:backup` creó un dump custom con SHA-256; `pnpm staging:restore:smoke` lo restauró en
+  una base efímera, comprobó 12 migraciones y 1 usuario seed y eliminó la base temporal.
+- El smoke LAN sobre `192.168.0.154` confirmó que web/API responden fuera de loopback; el smoke
+  multiplayer abrió dos sesiones autenticadas, sincronizó una party de dos miembros, creó una
+  instancia compartida de dos jugadores y recibió el broadcast de movimiento en ambos WebSockets.
+- `pnpm staging:env:check` rechazó el template con placeholders y aceptó fixtures local/TLS con
+  secretos sintéticos; la salida sólo mostró hosts y flags, nunca credenciales.
+- La batería final (`format:check`, lint, typecheck, 306 tests, 30 tests de integración, build y
+  validación de assets) terminó correctamente. Queda pendiente un proveedor real para probar dominio,
+  TLS, secretos, CI hospedado y dos clientes desde una red pública.

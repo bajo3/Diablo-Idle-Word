@@ -1,0 +1,101 @@
+name: la-brecha-oscura-staging
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-brecha_staging}
+      POSTGRES_USER: ${POSTGRES_USER:-brecha_staging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-staging-only-change-me}
+    ports:
+      - '${STAGING_DB_PORT:-5433}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+
+  migrate:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.server
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-brecha_staging}:${POSTGRES_PASSWORD:-staging-only-change-me}@postgres:5432/${POSTGRES_DB:-brecha_staging}
+    command: ['sh', '-c', 'pnpm db:migrate:deploy && pnpm db:seed']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  server:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.server
+    environment:
+      NODE_ENV: production
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 3001
+      SERVER_STATUS: ${SERVER_STATUS:-available}
+      APP_ORIGIN: ${STAGING_WEB_ORIGIN:-http://127.0.0.1:8080}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-brecha_staging}:${POSTGRES_PASSWORD:-staging-only-change-me}@postgres:5432/${POSTGRES_DB:-brecha_staging}
+    ports:
+      - '${STAGING_API_PORT:-3002}:3001'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_API_URL: ${STAGING_API_URL:-http://127.0.0.1:3002}
+    ports:
+      - '${STAGING_WEB_PORT:-8080}:80'
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1/']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  caddy:
+    image: caddy:2.10-alpine
+    profiles: ['tls']
+    environment:
+      STAGING_WEB_HOST: ${STAGING_WEB_HOST:?Set STAGING_WEB_HOST when using the tls profile}
+      STAGING_API_HOST: ${STAGING_API_HOST:?Set STAGING_API_HOST when using the tls profile}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+
+volumes:
+  staging_postgres_data:
+  caddy_data:
+  caddy_config:

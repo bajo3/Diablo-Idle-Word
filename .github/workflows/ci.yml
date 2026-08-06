@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: brecha_ci
+          POSTGRES_USER: brecha_ci
+          POSTGRES_PASSWORD: brecha_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U brecha_ci -d brecha_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://brecha_ci:brecha_ci_only@127.0.0.1:5432/brecha_ci
+      APP_ORIGIN: http://127.0.0.1:5173
+      SERVER_STATUS: available
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate staging configuration contract
+        run: pnpm staging:env:check
+        env:
+          NODE_ENV: production
+          SERVER_HOST: 0.0.0.0
+          POSTGRES_PASSWORD: ci-staging-validation-secret
+          STAGING_ALLOW_LOCALHOST: '1'
+          APP_ORIGIN: http://127.0.0.1:8080
+          DATABASE_URL: postgresql://brecha_ci:ci-staging-validation-secret@127.0.0.1:5432/brecha_ci
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm db:migrate:deploy
+      - run: pnpm db:seed
+      - run: pnpm test
+      - run: pnpm test:integration
+      - run: pnpm build

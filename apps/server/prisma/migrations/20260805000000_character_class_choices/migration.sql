@@ -1,0 +1,8 @@
+-- Paso 12: clases seleccionables. Todas comparten temporalmente el perfil Guardian.
+ALTER TYPE "CharacterClass" ADD VALUE IF NOT EXISTS 'AMAZON';
+ALTER TYPE "CharacterClass" ADD VALUE IF NOT EXISTS 'ASSASSIN';
+ALTER TYPE "CharacterClass" ADD VALUE IF NOT EXISTS 'BARBARIAN';
+ALTER TYPE "CharacterClass" ADD VALUE IF NOT EXISTS 'DRUID';
+ALTER TYPE "CharacterClass" ADD VALUE IF NOT EXISTS 'NECROMANCER';
+ALTER TYPE "CharacterClass" ADD VALUE IF NOT EXISTS 'PALADIN';
+ALTER TYPE "CharacterClass" ADD VALUE IF NOT EXISTS 'SORCERESS';

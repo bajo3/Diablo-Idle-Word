@@ -1,4 +1,4 @@
-import { IdSchema } from '@brecha/shared';
+import { CharacterClassIdSchema, IdSchema, type CharacterClassId } from '@brecha/shared';
 import { z } from 'zod';
 
 export const CharacterSaveFormatVersion = 1 as const;
@@ -27,6 +27,7 @@ export const CreateCharacterInputSchema = z.strictObject({
   character: z.strictObject({
     id: IdSchema,
     name: z.string().trim().min(1).max(64),
+    class: CharacterClassIdSchema.default('GUARDIAN'),
     attributes: BaseAttributesSchema,
     materials: z.bigint().nonnegative(),
     inventory: z.strictObject({
@@ -72,7 +73,7 @@ export type CharacterAggregate = {
   id: string;
   userId: string;
   name: string;
-  class: 'GUARDIAN';
+  class: CharacterClassId;
   availability: string;
   gold: bigint;
   materials: bigint;

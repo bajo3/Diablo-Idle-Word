@@ -9,6 +9,18 @@ que se envía desde React; coordenadas y configuración proceden exclusivamente 
 
 ## Estado actual
 
+En el Paso 18, `GameAudioMixer` y los adaptadores VFX viven en presentación: consumen eventos/estado
+ya validado, nunca escriben salud, cooldowns, inventario o persistencia. `settings.ts` sólo guarda
+preferencias locales (volúmenes, silencio y movimiento reducido) y las comunica al runtime mediante
+un evento de UI; no es una fuente de autoridad de gameplay.
+
+La selección de clase vive en `@brecha/shared` y se persiste como enum Prisma aditivo. La UI envía
+un ID; el servidor valida ownership, crea el progreso inicial y devuelve el mismo ID en cada snapshot.
+Mientras las siete opciones compartan el perfil de Guardián no se agregan condicionales de combate ni
+se duplican fórmulas. En Phaser, la escena no crea cuerpos de colisión para decoración: sólo conserva
+los límites del mundo y las validaciones autoritativas de knockback, evitando que un sprite de fondo
+pueda trabar al jugador.
+
 Los Pasos 1 y 2 fijaron el monorepo pnpm, React/Vite, Node/Fastify, TypeScript estricto y los paquetes `@brecha/shared`/`@brecha/game-data`. La arquitectura vigente y sus decisiones se documentan en [../architecture.md](../architecture.md); `GOAL.md` sigue siendo la fuente principal.
 
 ## Contratos del Paso 2
@@ -39,6 +51,46 @@ principal ya autenticado; los servicios de personajes reciben sólo ese `userId`
 por la UI. La selección durable usa el ownership de base y React consume DTOs HTTP, sin importar
 Prisma ni contener reglas de autorización.
 
+El contrato reusable de interacción vive en `@brecha/shared`: targets versionados declaran sus
+precondiciones y resultado, mientras el ledger V2 mantiene consumos/cooldowns sin depender de Phaser.
+`InteractionAuthorityService` es el adaptador server-side; la UI sólo transforma `F` en intención y
+renderiza el recibo. Los efectos concretos (loot, diálogo y reanimación) no se ejecutan desde la
+presentación.
+
+El primer bloque multiplayer usa `PartyRegistry` como autoridad process-local de lobby y
+`ActiveInstanceRegistry` como autoridad process-local del tick. El lobby sólo acepta intenciones
+autenticadas y genera snapshots; al iniciar, sus miembros se materializan en un estado de instancia
+compartido. `PartyRegistry` aplica cleanup por TTL sin persistir snapshots visuales en PostgreSQL: la
+persistencia social durable queda separada para un hito posterior, mientras que la reconexión dentro
+del TTL recupera el snapshot autoritativo.
+
+`EnemyAuthority` consume ese mismo tick para ejecutar una sola simulación PvE por `instanceId`.
+Conserva estado de FSM, spawn/leash, cooldowns, proyectiles y telégrafos fuera de la UI; delega daño
+del Guardián a `CombatAuthority` y sólo publica el resultado mediante snapshots. La presentación puede
+mostrar `aiState`, pero nunca decide el impacto ni la vida.
+
+`ActiveInstanceState.objectives` pertenece a la misma frontera autoritativa. En el Bosque infinito
+contiene el objetivo de nivel 1→20 (`InstanceObjectiveState`), se valida por ID único y rango, y se
+replica junto con `INSTANCE_SNAPSHOT`; el cliente sólo renderiza el progreso. La XP/recompensa que
+avanza ese objetivo se conectará al dominio de recompensas sin convertir el snapshot en una fuente de
+verdad persistente. El mismo límite se aplica a reanimación: `revive-authority.ts` elige el
+destinatario derribado, el recibo durable conserva `effectCharacterId` y el tick aplica vida/estado
+una sola vez; el navegador nunca puede escribir ese cambio.
+
+## Presentación de eventos autoritativos (Paso 14)
+
+`apps/web/src/game/game-session.ts` mantiene el transporte WebSocket autenticado separado del
+runtime: sólo decodifica JSON, limita el tamaño de cada mensaje y reintenta con backoff acotado. No
+envía comandos ni copia tokens. `game-events.ts` aplica `ServerEventSchema` antes de producir
+`UiLootEntry`/`UiNotification`; `GameRuntime.applyServerEvent` incorpora esos datos a un feed
+deduplicado y limitado a ocho entradas. `GameHudOverlay` consume ese snapshot y conserva fixtures
+únicamente como fallback visual antes del primer evento.
+
+La misma ruta sirve para `REWARD_GRANTED`, `COMBAT_RESULT` derrotado, efectos de interacción,
+interrupciones y rechazos. XP, oro, materiales, daño, vida, drops e inventario nunca se calculan en
+este adaptador: el cliente sólo presenta el resultado que el servidor ya validó. El preview local
+usa `localDefeatPresentation` para probar la misma forma de UI sin simular autoridad de red.
+
 ## Límites
 
 Mantener módulos para combat, classes, inventory/items, loot, idle, PvE/dungeons, multiplayer y saves. Compartir IDs y contratos versionados, no referencias internas. El UI no muta entidades directamente; el guardado no serializa nodos/objetos del motor sin DTO.
@@ -57,6 +109,21 @@ Mantener módulos para combat, classes, inventory/items, loot, idle, PvE/dungeon
 - Usar separación conceptual dominio/aplicación/infraestructura/presentación.
 - Mantener servidor autoritativo para estado compartido.
 - Exigir ExecPlan para cambios grandes.
+- El mapa mundial idle se implementará después del GOAL actual como catálogo de `ZoneDefinition`
+  versionado: React selecciona una zona, `shared` valida requisitos/genera encuentros deterministas,
+  el servidor posee progreso/recompensas y Phaser sólo adapta la zona activa. El modo offline usará
+  cálculo agregado por tiempo de servidor, no simulación por frame.
+
+El detalle de milestones, invariantes y pruebas está en
+[`docs/plans/post-goal-world-map-idle.md`](../plans/post-goal-world-map-idle.md).
+
+## Pueblo y economía (Paso 17)
+
+`TownService` posee el snapshot del hub, el catálogo expuesto y las transiciones del tutorial;
+`InventoryService` posee compra, venta y transferencia de instancias al cofre. `town-catalog.ts`
+es configuración inmutable server-side. React sólo expresa `stockId`, `itemId` y `operationId`, y
+renderiza recibos. `RewardLog`, `InventoryOperation` y `CharacterTownOperation` son ledgers separados
+por responsabilidad; no se introdujo estado económico en Phaser ni en la UI.
 
 ## Riesgos
 

@@ -4,7 +4,16 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['.agents/**', '**/coverage/**', '**/dist/**', '**/node_modules/**', 'scripts/**'],
+    ignores: [
+      '.agents/**',
+      '**/coverage/**',
+      '**/dist/**',
+      '**/node_modules/**',
+      'scripts/**',
+      // Local tooling scratch space, same rationale as scripts/: Node-only helpers that
+      // never ship in a bundle and are not part of the app's type or lint surface.
+      'tools/**',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

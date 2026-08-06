@@ -74,6 +74,78 @@ describe('shared contracts', () => {
     ).toBe('MOVE_INTENT');
   });
 
+  it('accepts server-owned endless-forest objective state in mission messages', () => {
+    const event = ServerEventSchema.parse({
+      protocolVersion: 1,
+      requestId: 'mission.forest.1',
+      type: 'MISSION_STATE',
+      payload: {
+        missionId: 'mission.corrupted_forest.breach',
+        revision: 4,
+        objectives: [
+          {
+            objectiveId: 'objective.forest.level',
+            mode: 'endless_forest',
+            status: 'active',
+            progress: 1,
+            target: 20,
+          },
+        ],
+      },
+    });
+    if (event.type !== 'MISSION_STATE') throw new Error('Expected a mission state event.');
+    expect(event.payload.objectives).toEqual([
+      {
+        objectiveId: 'objective.forest.level',
+        mode: 'endless_forest',
+        status: 'active',
+        progress: 1,
+        target: 20,
+      },
+    ]);
+  });
+
+  it('accepts a server interruption receipt for a damaged revive actor', () => {
+    expect(
+      ServerEventSchema.parse({
+        protocolVersion: 1,
+        requestId: 'revive-interrupted',
+        type: 'INTERACTION_INTERRUPTED',
+        payload: {
+          operationId: 'revive-interrupted',
+          characterId: 'character:actor',
+          reason: 'damage',
+          stateRevision: 8,
+        },
+      }),
+    ).toMatchObject({ type: 'INTERACTION_INTERRUPTED', payload: { reason: 'damage' } });
+  });
+
+  it('accepts an individual authoritative enemy reward event', () => {
+    expect(
+      ServerEventSchema.parse({
+        protocolVersion: 1,
+        requestId: 'reward:instance:forest:one:enemy:1',
+        type: 'REWARD_GRANTED',
+        payload: {
+          operationId: 'reward:character:one:enemy:1',
+          characterId: 'character:one',
+          source: 'enemy_defeat',
+          sourceId: 'instance:forest:one:enemy:1',
+          archetype: 'corrupted_minion',
+          experienceDelta: '10',
+          goldDelta: '5',
+          materialsDelta: '1',
+          forestLevel: 1,
+          forestXpInLevel: 10,
+          forestBestLevel: 1,
+          leveledUp: false,
+          replayed: false,
+        },
+      }),
+    ).toMatchObject({ type: 'REWARD_GRANTED', payload: { source: 'enemy_defeat' } });
+  });
+
   it('rejects invalid network versions, extra fields and event types', () => {
     expect(
       ClientEventSchema.safeParse({
@@ -101,6 +173,81 @@ describe('shared contracts', () => {
         payload: {},
       }).success,
     ).toBe(false);
+    expect(
+      ServerEventSchema.safeParse({
+        protocolVersion: 1,
+        type: 'INSTANCE_SNAPSHOT',
+        requestId: 'request.snapshot',
+        payload: {
+          instanceId: 'instance:forest:one',
+          zoneId: 'corrupted_forest',
+          difficulty: 'normal',
+          serverTimeMs: 1000,
+          tick: 4,
+          revision: 2,
+          players: [
+            {
+              characterId: 'character:one',
+              position: { x: 160, y: 160 },
+              actorState: 'active',
+              health: 220,
+              maxHealth: 220,
+            },
+          ],
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ClientEventSchema.safeParse({
+        protocolVersion: 1,
+        requestId: 'party.join',
+        sequence: 1,
+        type: 'PARTY_JOIN_INTENT',
+        payload: { joinCode: 'ABC123' },
+      }).success,
+    ).toBe(true);
+    expect(
+      ServerEventSchema.safeParse({
+        protocolVersion: 1,
+        requestId: 'party.snapshot',
+        type: 'PARTY_SNAPSHOT',
+        payload: {
+          schemaVersion: 1,
+          partyId: 'party:test',
+          joinCode: 'ABC123',
+          status: 'ACTIVE',
+          leaderCharacterId: 'character:one',
+          zoneId: 'corrupted_forest',
+          difficulty: 'normal',
+          revision: 3,
+          members: [
+            { characterId: 'character:one', ready: true, leader: true },
+            { characterId: 'character:two', ready: true, leader: false },
+          ],
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ServerEventSchema.safeParse({
+        protocolVersion: 1,
+        requestId: 'combat.result',
+        type: 'COMBAT_RESULT',
+        payload: {
+          operationId: 'combat.result',
+          characterId: 'character:one',
+          abilityId: 'ability.guardian.slash',
+          executionId: 'combat.result',
+          replayed: false,
+          damage: 12,
+          critical: false,
+          targetId: 'enemy:forest:1',
+          targetHealth: 28,
+          defeated: false,
+          cooldownEndsAt: 1_500,
+          revision: 4,
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it('rejects metric payloads with invalid values or extra fields', () => {

@@ -1,0 +1,7 @@
+{$STAGING_WEB_HOST} {
+  reverse_proxy web:80
+}
+
+{$STAGING_API_HOST} {
+  reverse_proxy server:3001
+}

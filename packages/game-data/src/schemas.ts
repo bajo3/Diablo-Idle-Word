@@ -2,9 +2,12 @@ import { z } from 'zod';
 
 import {
   AbilityIdSchema,
+  AffixDefinitionSchema,
   AssetManifestEntrySchema,
+  ClassRegistrySchema,
   EquipmentSlotSchema,
   IdSchema,
+  ItemDefinitionSchema,
   ItemRaritySchema,
   ItemTypeSchema,
   MapObjectPropertiesSchema,
@@ -57,6 +60,7 @@ export const GuardianAbilitySchema = z.strictObject({
   description: z.string().trim().min(1).max(400),
   animationId: z.string().trim().min(1).max(128),
   mechanics: z.array(AbilityMechanicSchema).min(1),
+  unlockLevel: z.number().int().min(1).max(10),
   tuningStatus: TuningStatusSchema,
 });
 export const GuardianDefinitionSchema = z.strictObject({
@@ -180,6 +184,16 @@ export const BalanceSchema = z.strictObject({
     healthPerAdditionalPlayer: z.literal(0.65),
     damagePerAdditionalPlayer: z.literal(0.15),
   }),
+  difficulty: z.strictObject({
+    normal: z.strictObject({
+      enemyHealthMultiplier: z.literal(1),
+      enemyDamageMultiplier: z.literal(1),
+    }),
+    veteran: z.strictObject({
+      enemyHealthMultiplier: z.literal(1.25),
+      enemyDamageMultiplier: z.literal(1.15),
+    }),
+  }),
   visual: z.strictObject({
     standardFrameSize: z.literal(64),
     largeFrameSize: z.literal(128),
@@ -247,8 +261,25 @@ export const HazardDefinitionSchema = z.strictObject({
   damage: z.number().int().positive(),
   lethal: z.literal(false),
 });
+
+export const CharacterProgressionSchema = z.strictObject({
+  formulaVersion: VersionSchema,
+  minimumLevel: z.literal(1),
+  maximumLevel: z.literal(10),
+  xpToReachLevel: z.array(z.number().int().nonnegative()).length(10),
+  attributePointsPerLevel: z.number().int().positive().max(10),
+  resetCostPerLevel: z.number().int().positive().max(100_000),
+});
 /** One enemy's attack: windup (telegraph-visible) -> impact (damage resolves) -> recovery. */
 export const EnemyAttackTuningSchema = z.strictObject({
+  /** Symmetric attacker roll consumed by `resolveAttack`; kept in data, never in the server tick. */
+  weaponDamage: z
+    .tuple([z.number().int().positive(), z.number().int().positive()])
+    .refine(([minimum, maximum]) => maximum >= minimum, 'Enemy weapon damage range is invalid.'),
+  power: z.number().int().nonnegative(),
+  level: z.number().int().positive(),
+  criticalChance: z.number().min(0).max(1),
+  criticalMultiplier: z.number().positive(),
   windupMs: z.number().int().nonnegative(),
   impactMs: z.number().int().nonnegative(),
   recoveryMs: z.number().int().nonnegative(),
@@ -276,14 +307,63 @@ export const EnemyTuningSchema = z.strictObject({
   maxHealth: z.number().int().positive(),
   armor: z.number().int().nonnegative(),
   moveSpeedPxPerSec: z.number().positive(),
+  separationRadiusPx: z.number().int().positive(),
   detectRadiusPx: z.number().int().positive(),
   loseTargetRadiusPx: z.number().int().positive(),
   leashRadiusPx: z.number().int().positive(),
   attack: EnemyAttackTuningSchema,
   telegraphMs: z.number().int().nonnegative(),
   xpReward: z.number().int().positive(),
+  goldReward: z.number().int().nonnegative(),
+  materialsReward: z.number().int().nonnegative(),
   animationIds: z.array(z.string().trim().min(1).max(128)).min(1),
   frameSize: z.union([z.literal(64), z.literal(128)]),
+});
+/**
+ * Numerical tuning for the enemy combat-ability profiles (Paso 8, specific-behaviours layer).
+ * Consumed by `resolveEnemyAbilityProfile` in `behavior-profile.ts`. All values PROVISIONAL -
+ * they ride the same `BALANCE_VERSION` as the rest of combat, so changing them is a versioned
+ * balance change, not a silent tweak. The heal/area/explosion/ranged blocks each describe one
+ * behaviour selected by the resolver from the enemy's `behaviors` tags (never from its id).
+ */
+export const EnemyAbilityTuningSchema = z.strictObject({
+  tuningStatus: z.literal('PROVISIONAL'),
+  healAllies: z.strictObject({
+    healMissingFraction: z.number().positive().max(1),
+    ignoreAboveFraction: z.number().positive().max(1),
+  }),
+  areaAttack: z.strictObject({
+    radiusPx: z.number().int().positive(),
+    stunMs: z.number().int().nonnegative(),
+  }),
+  explosion: z.strictObject({
+    radiusPx: z.number().int().positive(),
+    telegraphMs: z.number().int().positive(),
+    damageMultiplier: z.number().positive(),
+  }),
+  ranged: z.strictObject({
+    projectileSpeedPxPerSec: z.number().int().positive(),
+    projectileMaxRangePx: z.number().int().positive(),
+    hitRadiusPx: z.number().int().positive(),
+  }),
+});
+/**
+ * Tuning for one level of the endless Corrupted Forest (Paso 9). Each level scales monotonically
+ * (enforced by validation) so progression is always "harder than before, never easier". All values
+ * PROVISIONAL and versioned via `BALANCE_VERSION`. Consumed by `packages/shared/endless-forest.ts`.
+ */
+export const ForestLevelTuningSchema = z.strictObject({
+  level: z.number().int().positive(),
+  enemyHealthMultiplier: z.number().positive(),
+  enemyDamageMultiplier: z.number().positive(),
+  waveSize: z.number().int().positive(),
+  xpToAdvance: z.number().int().nonnegative(),
+});
+export const EndlessForestSchema = z.strictObject({
+  tuningStatus: z.literal('PROVISIONAL'),
+  minimumLevel: z.literal(1),
+  maximumLevel: z.literal(20),
+  levels: z.array(ForestLevelTuningSchema).length(20),
 });
 export const MapDefinitionSchema = z.strictObject({
   id: z.literal('map.corrupted_forest'),
@@ -312,17 +392,49 @@ export const MapDefinitionSchema = z.strictObject({
     .length(15),
   objects: z.array(MapObjectPropertiesSchema),
 });
+export const LootTableEntrySchema = z.strictObject({
+  definitionId: IdSchema,
+  weight: z.number().int().positive(),
+  dropChance: z.number().min(0).max(1),
+  minimumLevel: z.number().int().positive(),
+  maximumLevel: z.number().int().positive(),
+});
+export const LootTableSchema = z.strictObject({
+  id: IdSchema,
+  source: z.string().trim().min(1).max(64),
+  tuningStatus: z.literal('PROVISIONAL'),
+  entries: z.array(LootTableEntrySchema).min(1),
+});
+export const ItemGenerationConfigSchema = z.strictObject({
+  generatorVersion: z.string().trim().min(1).max(64),
+  rarityWeights: z
+    .array(z.strictObject({ rarity: ItemRaritySchema, weight: z.number().int().positive() }))
+    .min(1),
+  affixCountByRarity: z.strictObject({
+    common: z.literal(0),
+    magic: z.number().int().min(0).max(4),
+    rare: z.number().int().min(0).max(4),
+    legendary: z.number().int().min(0).max(4),
+  }),
+});
 export const GameDataCatalogSchema = z.strictObject({
   version: VersionSchema,
   balance: BalanceSchema,
+  progression: CharacterProgressionSchema,
   guardianCombat: GuardianCombatSchema,
   guardian: GuardianDefinitionSchema,
   attributes: z.array(AttributeDefinitionSchema).length(4),
   abilities: z.array(GuardianAbilitySchema).length(5),
   itemTypes: z.array(ItemTypeDefinitionSchema).length(10),
   rarities: z.array(RarityDefinitionSchema).length(4),
+  itemDefinitions: z.array(ItemDefinitionSchema).min(1),
+  affixes: z.array(AffixDefinitionSchema).min(1),
+  lootTables: z.array(LootTableSchema).min(1),
+  itemGeneration: ItemGenerationConfigSchema,
   enemies: z.array(EnemyDefinitionSchema).length(5),
   enemyTuning: z.array(EnemyTuningSchema).length(5),
+  enemyAbilityTuning: EnemyAbilityTuningSchema,
+  endlessForest: EndlessForestSchema,
   zone: ZoneDefinitionSchema,
   mission: MissionDefinitionSchema,
   spriteSheets: z.array(SpriteSheetSchema).min(1),
@@ -330,6 +442,12 @@ export const GameDataCatalogSchema = z.strictObject({
   assets: z.array(AssetManifestEntrySchema).min(1),
   maps: z.array(MapDefinitionSchema).length(1),
   hazards: z.array(HazardDefinitionSchema).length(1),
+  /**
+   * Post-MVP class expansion registry (M1, `docs/plans/post-goal-class-expansion.md`). Carries
+   * Guardian's identity as one `ClassDefinition` for shape parity; Guardian's actual abilities and
+   * combat tuning stay authoritative in `guardian`/`guardianCombat` above, untouched by this field.
+   */
+  classRegistry: ClassRegistrySchema,
 });
 
 export type TuningStatus = z.infer<typeof TuningStatusSchema>;
@@ -340,10 +458,16 @@ export type GuardianAbility = z.infer<typeof GuardianAbilitySchema>;
 export type GuardianDefinition = z.infer<typeof GuardianDefinitionSchema>;
 export type ItemTypeDefinition = z.infer<typeof ItemTypeDefinitionSchema>;
 export type RarityDefinition = z.infer<typeof RarityDefinitionSchema>;
+export type LootTableEntry = z.infer<typeof LootTableEntrySchema>;
+export type LootTable = z.infer<typeof LootTableSchema>;
+export type ItemGenerationConfig = z.infer<typeof ItemGenerationConfigSchema>;
 export type EnemyBehavior = z.infer<typeof EnemyBehaviorSchema>;
 export type EnemyDefinition = z.infer<typeof EnemyDefinitionSchema>;
 export type EnemyAttackTuning = z.infer<typeof EnemyAttackTuningSchema>;
 export type EnemyTuning = z.infer<typeof EnemyTuningSchema>;
+export type EnemyAbilityTuning = z.infer<typeof EnemyAbilityTuningSchema>;
+export type ForestLevelTuning = z.infer<typeof ForestLevelTuningSchema>;
+export type EndlessForest = z.infer<typeof EndlessForestSchema>;
 export type ZoneDefinition = z.infer<typeof ZoneDefinitionSchema>;
 export type MissionDefinition = z.infer<typeof MissionDefinitionSchema>;
 export type Balance = z.infer<typeof BalanceSchema>;
@@ -351,4 +475,5 @@ export type GuardianCombatAbility = z.infer<typeof GuardianCombatAbilitySchema>;
 export type GuardianCombat = z.infer<typeof GuardianCombatSchema>;
 export type MapDefinition = z.infer<typeof MapDefinitionSchema>;
 export type HazardDefinition = z.infer<typeof HazardDefinitionSchema>;
+export type CharacterProgression = z.infer<typeof CharacterProgressionSchema>;
 export type GameDataCatalog = z.infer<typeof GameDataCatalogSchema>;

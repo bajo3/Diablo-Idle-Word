@@ -1,18 +1,35 @@
+import { ranger, rootBrute, type PixelLabCharacter } from './pixellab-characters';
+
 /**
- * Enemy visual identity without new art (Paso 8 sprites remain blocked on PixelLab budget — see
- * docs/plans/step-08-enemies-ai.md). Each enemy reuses the Guardian's own generated frames
- * (`darkKnight` in pixellab-characters.ts) with a Phaser render-time tint, so five visually
- * distinct silhouettes exist without a single extra generation spent.
+ * Enemy visual identity. Each enemy reuses the Guardian's own generated frames (`darkKnight` in
+ * pixellab-characters.ts) with a Phaser render-time tint, so five visually distinct silhouettes
+ * exist without a single extra generation spent. An enemy that has had its own art generated sets
+ * `character` instead: when present, the dummy renders that character's real frames (no tint) —
+ * `root_brute` and `possessed_archer` use dedicated character sheets; the other three remain
+ * tinted Guardian placeholders until production art is budgeted. The tint is ignored when
+ * `character` is set, but kept in the record so a fallback remains available if art is removed.
  */
 export type EnemyVisualId =
   'corrupted_minion' | 'possessed_archer' | 'dark_shaman' | 'root_brute' | 'unstable_beast';
 
-export type EnemyVisual = Readonly<{ displayName: string; tint: number }>;
+export type EnemyVisual = Readonly<{
+  displayName: string;
+  tint: number;
+  /** Own generated art; when absent, the dummy reuses the Guardian's frames tinted. */
+  character?: PixelLabCharacter;
+  /**
+   * Render scale for the borrowed-silhouette enemies. Tint alone leaves three archetypes with the
+   * Guardian's exact outline, so a fight reads as one shape in four colours; sizing them apart at
+   * least makes a weak minion and a heavy beast distinguishable at a glance while their own art is
+   * still unbudgeted. Enemies with real art keep their authored proportions (scale 1).
+   */
+  scale?: number;
+}>;
 
 export const ENEMY_VISUALS: Readonly<Record<EnemyVisualId, EnemyVisual>> = Object.freeze({
-  corrupted_minion: { displayName: 'Esbirro corrupto', tint: 0x5f8f52 },
-  possessed_archer: { displayName: 'Arquero poseído', tint: 0x9c3b3b },
-  dark_shaman: { displayName: 'Chamán oscuro', tint: 0x8a3ffc },
-  root_brute: { displayName: 'Bruto de raíces', tint: 0xa8752f },
-  unstable_beast: { displayName: 'Bestia inestable', tint: 0xd9a441 },
+  corrupted_minion: { displayName: 'Esbirro corrupto', tint: 0x5f8f52, scale: 0.82 },
+  possessed_archer: { displayName: 'Arquero poseído', tint: 0x9c3b3b, character: ranger },
+  dark_shaman: { displayName: 'Chamán oscuro', tint: 0x8a3ffc, scale: 0.94 },
+  root_brute: { displayName: 'Bruto de raíces', tint: 0xa8752f, character: rootBrute },
+  unstable_beast: { displayName: 'Bestia inestable', tint: 0xd9a441, scale: 1.2 },
 });

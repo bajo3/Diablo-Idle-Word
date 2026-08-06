@@ -40,4 +40,36 @@ describe('server bootstrap', () => {
       protocolVersion: ProtocolVersion,
     });
   });
+
+  it('accepts the loopback hostname alias for browser development origins', async () => {
+    const server = buildServer({ allowedOrigins: ['http://localhost:5173'] });
+    servers.push(server);
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/status',
+      headers: { origin: 'http://127.0.0.1:5173' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe('http://127.0.0.1:5173');
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
+  });
+
+  it('accepts the alternate local frontend port used during development', async () => {
+    const server = buildServer({
+      allowedOrigins: ['http://localhost:5173'],
+    });
+    servers.push(server);
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/status',
+      headers: { origin: 'http://127.0.0.1:5176' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe('http://127.0.0.1:5176');
+    expect(response.headers['access-control-allow-credentials']).toBe('true');
+  });
 });

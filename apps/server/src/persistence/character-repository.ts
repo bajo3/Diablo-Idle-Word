@@ -1,4 +1,5 @@
 import { Prisma } from '../generated/prisma/client.js';
+import { BALANCE_VERSION, GAME_DATA_VERSION } from '@brecha/game-data';
 
 import {
   CreateCharacterInputSchema,
@@ -100,7 +101,7 @@ export class CharacterRepository {
           id: value.character.id,
           userId: value.user.id,
           name: value.character.name,
-          class: 'GUARDIAN',
+          class: value.character.class,
           materials: value.character.materials,
           strength: value.character.attributes.strength,
           dexterity: value.character.attributes.dexterity,
@@ -124,6 +125,14 @@ export class CharacterRepository {
                   character: { connect: { id: value.character.id } },
                 })),
               },
+            },
+          },
+          chest: {
+            create: {
+              id: `chest:${value.character.id}`,
+              capacity: 80,
+              schemaVersion: 1,
+              items: [],
             },
           },
           equipment: {
@@ -151,6 +160,31 @@ export class CharacterRepository {
               equipped: skill.equipped,
               barSlot: skill.barSlot,
             })),
+          },
+          forestProgress: {
+            create: {
+              id: `forest-progress:${value.character.id}`,
+              formatVersion: 1,
+              stateSchemaVersion: 1,
+              dataVersion: GAME_DATA_VERSION,
+              balanceVersion: BALANCE_VERSION,
+              state: {
+                level: 1,
+                xpInLevel: 0,
+                bestLevel: 1,
+                totalXp: 0,
+                totalGold: 0,
+                totalMaterials: 0,
+                countedDefeats: [],
+              },
+            },
+          },
+          interactionState: {
+            create: {
+              id: `interaction-state:${value.character.id}`,
+              schemaVersion: 2,
+              state: { consumedTargetIds: [], cooldowns: [] },
+            },
           },
         },
         include: characterAggregateInclude,

@@ -10,8 +10,9 @@
   },
   "scripts": {
     "dev": "pnpm --filter @brecha/shared --filter @brecha/game-data build && pnpm --stream --parallel --filter @brecha/web --filter @brecha/server dev",
-    "build": "pnpm db:generate && pnpm -r --if-present build",
+    "build": "pnpm validate:assets && pnpm db:generate && pnpm -r --if-present build",
     "lint": "eslint .",
+    "validate:assets": "node scripts/validate-assets.mjs",
     "typecheck": "pnpm db:generate && pnpm -r --if-present typecheck",
     "test": "pnpm --filter @brecha/shared --filter @brecha/game-data build && vitest run",
     "test:watch": "vitest",
@@ -23,9 +24,14 @@
     "db:generate": "prisma generate",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "pnpm --filter @brecha/shared --filter @brecha/game-data build && vitest run --config vitest.integration.config.ts",
     "db:backup": "tsx scripts/db-backup.ts",
-    "db:restore:smoke": "tsx scripts/db-restore-smoke.ts"
+    "db:restore:smoke": "tsx scripts/db-restore-smoke.ts",
+    "staging:smoke": "node scripts/staging-smoke.mjs",
+    "staging:multiplayer:smoke": "node scripts/staging-multiplayer-smoke.mjs",
+    "staging:env:check": "node scripts/validate-staging-env.mjs",
+    "staging:backup": "node scripts/staging-backup.mjs backup",
+    "staging:restore:smoke": "node scripts/staging-backup.mjs restore-smoke"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

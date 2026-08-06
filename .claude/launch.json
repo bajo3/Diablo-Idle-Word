@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@brecha/web", "dev", "--port", "5273", "--strictPort"],
+      "port": 5273,
+      "env": { "VITE_API_URL": "http://localhost:3051" }
+    }
+  ]
+}
