@@ -274,7 +274,9 @@ Primero debe existir una experiencia pequeña, completa, repetible y divertida.
   por ahora (ver §1 y §0.1).
 - Modo offline o ausente basado en una calibración real de 5 minutos.
 - Un límite inicial configurable de 8 horas de progreso ausente.
-- Una clase jugable: Guardián.
+- Un perfil de combate jugable: Guardián. La creación también ofrece siete IDs de clase
+  persistentes (Amazona, Asesina, Bárbara, Druida, Nigromante, Paladín y Hechicera) que por ahora
+  resuelven al mismo perfil provisional del Guardián.
 - Nivel máximo inicial: 10.
 - Cuatro atributos principales.
 - Ataque básico.
@@ -3998,3 +4000,116 @@ persistente si el Bruto debe ser el personaje del jugador y no sólo el enemigo 
   tests Unix para que toda la suite Go de integración sea verde en Windows.
 
 Detalle operativo: `docs/plans/aseprite-mcp-local-stack.md` y `tools/aseprite-stack/REPORT.md`.
+
+# Registro de sincronización — clases y arte (2026-08-06)
+
+La auditoría de `docs/game/classes.md` confirmó que el MVP ya persiste siete IDs de clase que
+resuelven al perfil provisional del Guardián, y que Amazona está conectada en producción al rig
+por capas `hunter`. También confirmó que el scaffold M1 (`class-tree.ts`, `ClassRegistrySchema` y
+`validateClassRegistry`) existe, pero el catálogo sólo contiene a `guardian`: no hay ramas, nodos,
+recursos ni kits propios para las cuatro clases de expansión. El demo de Bárbara queda como arte de
+prueba fuera de los assets del juego.
+
+Se corrigieron las notas de procedencia y el comentario del catálogo para que no describan un estado
+de desarrollo ya superado. Quedan abiertas, sin implementar, tres decisiones: resolver la colisión
+del ID `dark_knight`, decidir si Bárbara permanece como opción equivalente o se adelanta como clase
+propia, y confirmar si el gate del Paso 20 sigue vigente o si el propietario autoriza una excepción.
+El Paso 21 no se inicia y ningún checkbox de expansión se marca como terminado.
+
+Verificación de esta revisión: `pnpm exec vitest run packages/shared/src/class-tree.test.ts
+packages/game-data/src/validation.test.ts` (20 tests) y las pruebas de IDs/progresión/contratos
+seleccionadas (12 tests), todas verdes. No se modificó gameplay, persistencia ni assets binarios.
+
+## M1 — registro inicial de clases (2026-08-06)
+
+Se registraron `guardian` y las siete clases jugables (`amazon`, `assassin`, `barbarian`, `druid`,
+`necromancer`, `paladin`, `sorceress`) en `GAME_DATA.classRegistry`. Bárbara ya dejó de ser un registro
+vacío: usa el recurso `rage` y la rama `branch.barbarian.bloodsong`; las demás clases conservan
+temporalmente el recurso provisional y ramas/nodos vacíos.
+
+Verificación: `pnpm exec vitest run packages/game-data/src/validation.test.ts
+packages/shared/src/class-tree.test.ts` (20 tests) y `pnpm typecheck` pasan. El siguiente registro
+documenta el cierre de contratos M1.
+
+## M1 — registro inicial de contenido (2026-08-06)
+
+Se agregó `GAME_DATA.contentExpansion` como registro data-only versionado: cinco enemigos nuevos
+(`spore_stalker`, `ash_crawler`, `veil_wraith`, `stonebound_sentinel`, `rift_howler`) y tres zonas
+(`spore_marsh`, `ash_mines`, `threshold_ruins`) con mapas, IDs estables y referencias cruzadas.
+Todavía no se activan spawns, balance, arte ni recompensas de estas entradas.
+
+Verificación: `pnpm exec vitest run packages/game-data/src/validation.test.ts
+packages/shared/src/class-tree.test.ts` (21 tests), `pnpm typecheck` y `git diff --check` pasan.
+Siguiente subpaso: contrato data-driven de skills y efectos (completado en el registro siguiente).
+
+## M1 — contrato de skills y efectos (2026-08-06)
+
+Los nodos del árbol aceptan `effectIds` y `ClassRegistry` expone efectos versionados con tipo,
+targeting, tags y estado de tuning. `validateClassRegistry` comprueba que cada referencia apunte a un
+efecto existente, evitando nodos huérfanos antes de activar habilidades en el servidor. El catálogo
+actual declara los tres efectos provisionales del kit de Bárbara; todavía no se activan en combate.
+
+Verificación: `pnpm exec vitest run packages/shared/src/class-tree.test.ts
+packages/game-data/src/validation.test.ts` (22 tests), `pnpm typecheck`, builds de `@brecha/shared` y
+`@brecha/game-data`, y `git diff --check` pasan. Siguiente subpaso: vertical slice de Bárbara.
+
+## M2 — diseño data-driven de Bárbara (2026-08-06)
+
+Se activó en el catálogo la rama `branch.barbarian.bloodsong` con `Hachazo creciente` (activo),
+`Impulso de sangre` (pasiva) y `Juramento del coloso` (definitiva). Cada nodo referencia una
+habilidad/efecto estable; el helper puro `unlockClassSkillNode` valida clase, nivel, prerrequisito y
+puntos sin condicionales por clase. El kit todavía no se conecta a la autoridad de combate, a la
+persistencia de talentos ni a arte/VFX/audio definitivos.
+
+Verificación: `pnpm exec vitest run packages/shared/src/class-skills.test.ts
+packages/shared/src/class-tree.test.ts packages/game-data/src/validation.test.ts` (24 tests),
+`pnpm typecheck`, builds de `@brecha/shared`/`@brecha/game-data` y `git diff --check` pasan.
+Siguiente subpaso: integración server-side del kit de Bárbara (completada en el registro siguiente).
+
+## M2 — integración server-side de Bárbara (2026-08-06)
+
+La creación de personajes Bárbara inicia con `ability.barbarian.cleave`; `ProgressionService` deriva
+las habilidades desde la rama registrada y mantiene Guardián como fallback compatible. La autoridad de
+combate recibe la clase validada desde el snapshot autenticado y selecciona el tuning
+`barbarian-combat.1`, sin aceptar daño, coste ni cooldown del cliente. Se agregó una prueba de ataque
+Bárbara que resuelve impacto diferido y daño determinista.
+
+Verificación: `pnpm exec vitest run packages/shared/src/character-class.test.ts
+apps/server/src/gameplay/combat-authority.test.ts packages/game-data/src/validation.test.ts` (19 tests),
+`pnpm typecheck`, builds de `@brecha/shared`/`@brecha/game-data` y `git diff --check` pasan.
+
+La integración `apps/server/src/characters/progression.integration.test.ts` crea y carga una Bárbara
+real contra PostgreSQL y confirma que el snapshot autenticado contiene `cleave` desbloqueada y la
+definitiva con requisito de nivel 6. `pnpm test:integration` queda en 32 tests verdes. Siguiente
+subpaso: conectar el snapshot de nodos a la UI de árbol (completado en la presentación siguiente).
+
+La pantalla `/habilidades` ahora consume `branchId`, `nodeId`, `kind` y `effectIds` opcionales del
+snapshot: muestra la rama `Canto de sangre` para Bárbara y evita ofrecer una pasiva como ranura activa.
+Verificación: `pnpm exec vitest run apps/web/src/screens/Skills.test.tsx` (2 tests), `pnpm typecheck`
+y `git diff --check` pasan. El siguiente bloque de M2 es arte de Bárbara y eventos VFX/audio.
+
+Se generó además un preview provisional de Bárbara en
+`apps/web/public/assets/characters/barbarian/previews/barbarian_preview.png` usando el pipeline de
+imagen con chroma-key y alpha, escalado nearest-neighbor a 184×184. No se agregó al manifiesto ni al
+runtime porque todavía no es una hoja animada consistente; la procedencia y los requisitos pendientes
+quedaron registrados en `ASSET_PROVENANCE.md`.
+
+# Decisión de alcance — expansión completa de contenido (2026-08-06)
+
+El propietario autorizó explícitamente completar las siete clases, mapas nuevos, armas, armaduras,
+habilidades, efectos, audio y al menos cinco enemigos mientras el Paso 20 continúa abierto. Esta
+excepción no inicia el Paso 21 ni elimina los requisitos de despliegue. El trabajo queda gobernado por
+[`docs/plans/all-content-expansion.md`](docs/plans/all-content-expansion.md) y debe avanzar por hitos,
+con M1 (contratos y catálogo validable) ya cerrado y M2 iniciado de forma gradual.
+
+## M2 — runtime local de Bárbara (2026-08-06)
+
+El runtime local ahora selecciona `barbarian-combat.1` cuando la clase es `BARBARIAN`, conserva
+la autoridad del servidor para el recorrido online y expone en el HUD las tres habilidades activas
+del vertical slice: `Hendidura` (LMB), `Juramento berserker` (Q) y `Piel de batalla` (E). La barra
+usa los IDs del snapshot de progresión; las pasivas no se renderizan como ranuras activas y el
+recurso se etiqueta `RABIA` para Bárbara. Se agregaron regresiones del selector de tuning y del HUD.
+
+Pendiente de M2: hojas animadas consistentes, manifest/runtime de arte, VFX/audio definitivos y
+validación visual. Después se continúa con las seis clases restantes según
+[`docs/plans/all-content-expansion.md`](docs/plans/all-content-expansion.md).

@@ -90,4 +90,45 @@ describe('Skills screen', () => {
       ),
     );
   });
+
+  it('renders the Barbarian branch metadata and keeps passive nodes off the action bar', async () => {
+    const barbarian: ProgressionSnapshot = {
+      ...snapshot,
+      class: 'BARBARIAN',
+      skills: [
+        {
+          abilityId: 'ability.barbarian.cleave',
+          displayName: 'Hachazo creciente',
+          description: 'Golpe frontal.',
+          unlockLevel: 1,
+          unlocked: true,
+          equipped: true,
+          barSlot: 0,
+          level: 1,
+          nodeId: 'node.barbarian.bloodsong.cleave',
+          branchId: 'branch.barbarian.bloodsong',
+          kind: 'active',
+        },
+        {
+          abilityId: 'node.barbarian.bloodsong.blood_rush',
+          displayName: 'Impulso de sangre',
+          description: 'Velocidad.',
+          unlockLevel: 2,
+          unlocked: true,
+          equipped: false,
+          barSlot: null,
+          level: 1,
+          nodeId: 'node.barbarian.bloodsong.blood_rush',
+          branchId: 'branch.barbarian.bloodsong',
+          kind: 'passive',
+        },
+      ],
+      equippedAbilityIds: ['ability.barbarian.cleave'],
+    };
+    vi.spyOn(gameApi, 'progression').mockResolvedValue({ progression: barbarian });
+    render(<Skills characterId="character:test" onBack={vi.fn()} />);
+    expect(await screen.findByText('Rama · Canto de sangre')).toBeTruthy();
+    expect(screen.getByText('Pasiva · no ocupa ranura')).toBeTruthy();
+    expect(screen.getByText('Impulso de sangre')).toBeTruthy();
+  });
 });

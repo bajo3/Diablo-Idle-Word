@@ -115,6 +115,12 @@ export type ProgressionSkillSnapshot = {
   equipped: boolean;
   barSlot: number | null;
   level: number;
+  nodeId?: string;
+  branchId?: string;
+  kind?: 'active' | 'passive' | 'ultimate' | 'basic_attack';
+  prerequisiteNodeId?: string;
+  pointCost?: number;
+  effectIds?: string[];
 };
 export type ProgressionSnapshot = {
   schemaVersion: 1;

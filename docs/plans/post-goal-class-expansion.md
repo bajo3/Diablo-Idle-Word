@@ -1,5 +1,10 @@
 # Expansión de clases y árboles de habilidades — referencia de diseño propia
 
+> **Estado (2026-08-06): plan histórico superseded.** Este documento conserva el análisis inicial de
+> cuatro IDs (`dark_knight`, `arcanist`, `hunter`, `summoner`). La autorización posterior del
+> propietario amplió el alcance a las siete clases y abrió el trabajo durante Paso 20; seguir
+> [`all-content-expansion.md`](all-content-expansion.md) para checkboxes, orden y progreso actual.
+
 ## Objetivo del usuario
 
 Ampliar La Brecha Oscura con una estructura de clases inspirada en la profundidad de los ARPG
@@ -189,8 +194,9 @@ seguir cargando como `guardian` con la build actual.
 - [x] 2026-08-05: leído el brief adjunto y contrastado con `GOAL.md`, `PLANS.md`, catálogo,
       Prisma, progresión, combate y HUD.
 - [x] 2026-08-05: creado este ExecPlan con IDs, clases, límites, autoridad y gates de producción.
-- [ ] Próximo: cerrar bloqueos externos del Paso 20 y recibir autorización explícita para iniciar
-      M1; no iniciar M1 en esta sesión.
+- [ ] Próximo: cerrar bloqueos externos del Paso 20 y recibir autorización explícita para continuar
+      M1. El scaffold de schemas/validador ya existe, pero no se activan clases, ramas, nodos ni
+      kits nuevos hasta resolver la colisión `dark_knight` y el gate de alcance.
 
 ## Pruebas
 
@@ -212,8 +218,11 @@ fija y emitir métricas p10/p50/p90 o p95 según el escenario.
 
 ## Resultados
 
-La sesión actual sólo agrega documentación. No se modificaron catálogo, Prisma, contratos, UI,
-combate ni assets; por lo tanto no se marca ningún hito de implementación.
+El scaffold M1 sí existe en `packages/shared/src/class-tree.ts`, `GameData` y el validador. El
+catálogo ya registra a Guardian y las siete clases jugables con ramas/nodos vacíos; todavía no hay
+ramas/nodos jugables ni el cierre de contratos de contenido. La creación de siete IDs equivalentes y
+el rig de Amazona/hunter pertenecen al plan del MVP y están registrados por separado. Por eso M1
+continúa sin marcarse como terminado.
 
 ## Trabajo pendiente
 

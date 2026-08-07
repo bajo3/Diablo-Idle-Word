@@ -2,6 +2,11 @@
 
 ## Estado actual
 
+> **Estado vigente (2026-08-06):** la referencia operativa es [`docs/plans/all-content-expansion.md`](../plans/all-content-expansion.md).
+> El bloque de expansión histórica que sigue conserva decisiones antiguas de cuatro clases y no debe
+> usarse como checklist. M1 ya está cerrado: las siete clases jugables y `GUARDIAN` legado tienen
+> contratos data-driven; M2 está en curso con el vertical slice de `BARBARIAN`.
+
 Existe el contrato y catalogo inicial del Guardian, sus atributos, Furia y cinco habilidades. El
 Paso 12 agrega una curva de XP acumulativa 1–10, puntos de atributo, stats derivados, requisitos
 de nivel y una barra persistida de cuatro ranuras; el tuning de combate sigue siendo provisional.
@@ -12,6 +17,13 @@ temporalmente el perfil de combate del Guardián; `GUARDIAN` se conserva como va
 fallback para clientes antiguos. La elección se valida en servidor y aparece en Personaje,
 Habilidades y el HUD junto con XP/nivel. Los kits diferenciados, recursos y árboles propios siguen
 fuera de este MVP.
+
+En combate Bárbara ya selecciona un tuning propio en la autoridad server-side y comienza con
+`ability.barbarian.cleave`; el resto de opciones sigue resolviendo al perfil provisional del Guardián.
+Visualmente sólo Amazona tiene hoy un rig propio conectado (`hunter`); Bárbara tiene un preview
+provisional fuera del manifest ejecutable. La rama `bloodsong` aparece en su snapshot de progresión y
+en la pantalla de Habilidades; la barra de acción/runtime, persistencia de talentos y hojas animadas
+definitivas siguen pendientes.
 
 ## Expansión posterior inspirada en ARPG clásicos
 
@@ -58,6 +70,9 @@ todo el código, esquemas, autoridad de servidor, migraciones y pruebas del proy
   nadie verificó todavía si el generador de imágenes de Codex mantiene consistencia entre frames de una
   misma animación tan bien como PixelLab. Recomiendo probar con **una sola clase primero** (sugiero
   `hunter`, la más visualmente distinta del Guardián) antes de encargar las cuatro.
+- **Estado real:** `hunter` ya fue producido como rig por capas y quedó conectado a `AMAZON`. No se
+  deben encargar las otras clases hasta resolver la colisión de `dark_knight` y recibir autorización
+  explícita para continuar la expansión.
 - **Fondos de mapas nuevos**, mismo formato que los seis `.webp` existentes (832×468, sin texto, sin
   colisiones, sólo ambientación) para las zonas que acompañen a las clases nuevas.
 - Cada asset que entregue Codex necesita una entrada nueva en `ASSET_PROVENANCE.md` y en
@@ -66,13 +81,10 @@ todo el código, esquemas, autoridad de servidor, migraciones y pruebas del proy
 
 ### Claude — arquitectura, datos y autoridad
 
-- **Desbloquear el catálogo para que admita más de una clase/mapa/enemigo.** Hoy
-  `packages/game-data/src/schemas.ts` es literal a propósito: `guardian: GuardianDefinitionSchema`
-  fuerza `id: z.literal('guardian')`, `enemies` exige `.length(5)` exacto y `maps` exige `.length(1)`
-  exacto. Es una guarda intencional del MVP (evita que un catálogo mal armado pase validación en
-  silencio), pero también es el bloqueo real número uno: nada de lo demás compila hasta que esto pase
-  a ser data-driven (arrays con mínimos, no longitudes exactas) sin romper `guardian` existente. Esto
-  es el hito **M1** del plan.
+- **M1 está cerrado.** `packages/shared/src/class-tree.ts` contiene los schemas y el validador de IDs,
+  referencias y ciclos; `GameData` integra `classRegistry`, los contratos de efectos y los catálogos de
+  cinco enemigos y tres zonas. `BARBARIAN` ya tiene recurso `rage`, rama `bloodsong` y tres nodos
+  provisionales; las otras seis clases conservan ramas vacías hasta sus vertical slices.
 - Módulos puros de ramas/nodos/sinergias/respec en `packages/shared` (sin Phaser, sin timers,
   determinísticos, con tests).
 - Autoridad de servidor: selección de clase, `ProgressionService`, `combat-authority.ts`, migración
@@ -87,9 +99,10 @@ todo el código, esquemas, autoridad de servidor, migraciones y pruebas del proy
 
 ### Orden sugerido
 
-1. Resolver la colisión de ID `dark_knight` (decisión de una línea, bloquea todo lo demás de arte).
-2. Codex genera **una** clase de prueba (arte) mientras Claude arranca M1 (esquema data-driven) en
-   paralelo — son independientes, no hay por qué esperar en serie.
+1. Resolver la colisión de ID `dark_knight` (el Guardián conserva su asset actual; la clase futura
+   debe usar un ID de asset distinto, salvo decisión explícita en contrario).
+2. Mantener el scaffold M1 honesto y no activar ramas/kits hasta que el gate del Paso 20 o una
+   autorización explícita permita continuar.
 3. Validar la clase de prueba (calidad de arte + `pnpm validate:assets` + integración en
    `pixellab-characters.ts`) antes de encargar las tres restantes.
 4. Con M1 cerrado y el arte de las 4 clases validado, Claude sigue con M2 (vertical slice de una rama

@@ -18,6 +18,58 @@ afterAll(async () => {
 });
 
 describe('Paso 12 character progression', () => {
+  it('creates and loads a Barbarian with its data-driven branch snapshot', async () => {
+    if (server === undefined) throw new Error('test server unavailable');
+    const registered = await server.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      headers: { origin, 'content-type': 'application/json' },
+      payload: {
+        email: `barbarian-${Date.now()}@local.invalid`,
+        password: 'secure-password',
+        displayName: 'Barbarian test',
+      },
+    });
+    expect(registered.statusCode).toBe(200);
+    const cookie = String(registered.headers['set-cookie']).match(/brecha_session=([^;]+)/)?.[1];
+    if (cookie === undefined) throw new Error('missing session cookie');
+    const headers = {
+      cookie: `brecha_session=${cookie}`,
+      origin,
+      'content-type': 'application/json',
+    };
+    const created = await server.inject({
+      method: 'POST',
+      url: '/api/characters',
+      headers,
+      payload: { name: 'Progression Barbarian', class: 'BARBARIAN' },
+    });
+    expect(created.statusCode).toBe(201);
+    const characterId = (created.json() as { character: { id: string } }).character.id;
+    const snapshot = await server.inject({
+      method: 'GET',
+      url: `/api/characters/${characterId}/progression`,
+      headers,
+    });
+    expect(snapshot.statusCode).toBe(200);
+    expect(snapshot.json()).toMatchObject({
+      progression: {
+        class: 'BARBARIAN',
+        skills: expect.arrayContaining([
+          expect.objectContaining({
+            abilityId: 'ability.barbarian.cleave',
+            unlocked: true,
+          }),
+          expect.objectContaining({
+            abilityId: 'ability.barbarian.berserker_oath',
+            unlockLevel: 6,
+            unlocked: false,
+          }),
+        ]),
+      },
+    });
+  });
+
   it('rejects overspending and persists authoritative attributes and skill bar', async () => {
     if (server === undefined || database === undefined) throw new Error('test server unavailable');
     const registered = await server.inject({

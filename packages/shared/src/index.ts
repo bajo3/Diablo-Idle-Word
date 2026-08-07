@@ -3,6 +3,7 @@ export * from './away-calculation.js';
 export * from './combat.js';
 export * from './character-class.js';
 export * from './class-tree.js';
+export * from './class-skills.js';
 export * from './endless-forest.js';
 export * from './forest-waves.js';
 export * from './forest-progress-save.js';

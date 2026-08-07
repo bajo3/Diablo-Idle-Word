@@ -36,9 +36,22 @@ export const SkillNodeDefinitionSchema = z.strictObject({
   description: z.string().trim().min(1).max(400),
   requirements: SkillNodeRequirementSchema,
   tags: z.array(z.string().trim().min(1).max(40)).max(12),
+  /** Optional combat/progression ability contract. Omitted for purely passive metadata nodes. */
+  abilityId: IdSchema.optional(),
+  effectIds: z.array(IdSchema).max(8).optional(),
   schemaVersion: z.string().trim().min(1).max(64),
 });
 export type SkillNodeDefinition = z.infer<typeof SkillNodeDefinitionSchema>;
+
+export const SkillEffectDefinitionSchema = z.strictObject({
+  effectId: IdSchema,
+  kind: z.enum(['damage', 'heal', 'buff', 'debuff', 'projectile', 'summon', 'control', 'shield']),
+  targeting: z.enum(['self', 'ally', 'enemy', 'area', 'direction']),
+  tags: z.array(z.string().trim().min(1).max(40)).max(12),
+  tuningStatus: z.enum(['TBD', 'PROVISIONAL']),
+  schemaVersion: z.string().trim().min(1).max(64),
+});
+export type SkillEffectDefinition = z.infer<typeof SkillEffectDefinitionSchema>;
 
 export const SkillBranchDefinitionSchema = z.strictObject({
   branchId: IdSchema,
@@ -65,6 +78,7 @@ export const ClassRegistrySchema = z.strictObject({
   classes: z.array(ClassDefinitionSchema).min(1),
   branches: z.array(SkillBranchDefinitionSchema),
   nodes: z.array(SkillNodeDefinitionSchema),
+  effects: z.array(SkillEffectDefinitionSchema).optional(),
 });
 export type ClassRegistry = z.infer<typeof ClassRegistrySchema>;
 
@@ -99,12 +113,21 @@ export function validateClassRegistry(registry: ClassRegistry): readonly ClassRe
   }
 
   const nodeIds = new Set<string>();
+  const abilityIds = new Set<string>();
   const nodesById = new Map<string, SkillNodeDefinition>();
   for (const node of registry.nodes) {
     if (nodeIds.has(node.nodeId))
       issues.push({ path: `nodes.${node.nodeId}`, message: 'Duplicate node ID' });
     nodeIds.add(node.nodeId);
     nodesById.set(node.nodeId, node);
+    if (node.abilityId !== undefined) {
+      if (abilityIds.has(node.abilityId))
+        issues.push({
+          path: `nodes.${node.nodeId}`,
+          message: `Duplicate node ability ID: ${node.abilityId}`,
+        });
+      abilityIds.add(node.abilityId);
+    }
 
     const branch = registry.branches.find((candidate) => candidate.branchId === node.branchId);
     if (branch === undefined)
@@ -118,6 +141,15 @@ export function validateClassRegistry(registry: ClassRegistry): readonly ClassRe
         message: `Class mismatch with its branch: node=${node.classId} branch=${branch.classId}`,
       });
   }
+
+  const effectIds = new Set((registry.effects ?? []).map(({ effectId }) => effectId));
+  for (const node of registry.nodes)
+    for (const effectId of node.effectIds ?? [])
+      if (!effectIds.has(effectId))
+        issues.push({
+          path: `nodes.${node.nodeId}`,
+          message: `References unknown effect: ${effectId}`,
+        });
 
   for (const node of registry.nodes) {
     const prerequisiteNodeId = node.requirements.prerequisiteNodeId;

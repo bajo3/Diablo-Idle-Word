@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
-import {
-  createGuardianCombatState,
-  type CharacterClassId,
-  type ItemStatKey,
-} from '@brecha/shared';
+import { createGuardianCombatState, type CharacterClassId, type ItemStatKey } from '@brecha/shared';
 import { GAME_DATA } from '@brecha/game-data';
 
-import { guardianCombatTuning } from './combat-controller';
+import { combatTuningForClass, guardianCombatTuning } from './combat-controller';
 import { gameApi, type ProgressionSnapshot } from '../api';
 import { equipmentVisualFromSnapshot, type EquipmentVisualLoadout } from './equipment-visual';
 import { GameHudOverlay } from './GameHudOverlay';
@@ -28,8 +24,13 @@ import {
 } from '../settings';
 
 /** Mirrors LocalCombatController.snapshot() before the runtime mounts and publishes a real one. */
-function initialHud(connection: RuntimeConnection): GameHudSnapshot {
-  const state = createGuardianCombatState(guardianCombatTuning);
+function initialHud(
+  connection: RuntimeConnection,
+  characterClass?: CharacterClassId,
+): GameHudSnapshot {
+  const tuning =
+    characterClass === undefined ? guardianCombatTuning : combatTuningForClass(characterClass);
+  const state = createGuardianCombatState(tuning);
   return {
     facing: 'down',
     cameraZoom: CAMERA_ZOOM,
@@ -39,7 +40,7 @@ function initialHud(connection: RuntimeConnection): GameHudSnapshot {
     maxHealth: state.maxHealth,
     downed: false,
     fury: state.fury,
-    maxFury: guardianCombatTuning.maxFury,
+    maxFury: tuning.maxFury,
     cooldownRemainingMs: { slash: 0, powerStrike: 0, whirlwind: 0, ironSkin: 0 },
     ironSkinActive: false,
     enemiesAlive: 0,
@@ -152,7 +153,7 @@ export function GameIsland({
   // balance were real would be a mock dressed as a feature, so they are dropped once real data
   // arrives rather than being filled with zeros.
   const [resources, setResources] = useState<readonly UiResource[] | undefined>(undefined);
-  const [hud, setHud] = useState<GameHudSnapshot>(() => initialHud(connection));
+  const [hud, setHud] = useState<GameHudSnapshot>(() => initialHud(connection, characterClass));
   const localExperienceRef = useRef(0);
   const [progression, setProgression] = useState<ProgressionSnapshot | undefined>(() =>
     localProgression ? loadLocalProgression(characterId) : undefined,

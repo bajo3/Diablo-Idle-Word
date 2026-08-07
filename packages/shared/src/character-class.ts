@@ -28,10 +28,10 @@ export type CharacterClassOption = Readonly<{
   displayName: string;
   archetype: string;
   description: string;
-  sharedProfile: 'guardian';
+  sharedProfile: 'guardian' | 'barbarian';
 }>;
 
-/** UI may present these names, but combat intentionally resolves every option to Guardian for now. */
+/** UI presents stable names while each class resolves to its current shared combat profile. */
 export const CHARACTER_CLASS_OPTIONS: readonly CharacterClassOption[] = Object.freeze([
   {
     id: 'AMAZON',
@@ -51,8 +51,8 @@ export const CHARACTER_CLASS_OPTIONS: readonly CharacterClassOption[] = Object.f
     id: 'BARBARIAN',
     displayName: 'Bárbara',
     archetype: 'Melee',
-    description: 'Perfil común provisional: combate del Guardián.',
-    sharedProfile: 'guardian',
+    description: 'Perfil melee provisional: Canto de sangre y Rabia.',
+    sharedProfile: 'barbarian',
   },
   {
     id: 'DRUID',
@@ -85,6 +85,23 @@ export const CHARACTER_CLASS_OPTIONS: readonly CharacterClassOption[] = Object.f
 ]);
 
 export const LEGACY_CHARACTER_CLASS: CharacterClassId = 'GUARDIAN';
+
+/** Stable bridge from persisted uppercase IDs to the data-driven class registry IDs. */
+export const CLASS_REGISTRY_ID_BY_CHARACTER_CLASS: Readonly<Record<CharacterClassId, string>> =
+  Object.freeze({
+    GUARDIAN: 'guardian',
+    AMAZON: 'amazon',
+    ASSASSIN: 'assassin',
+    BARBARIAN: 'barbarian',
+    DRUID: 'druid',
+    NECROMANCER: 'necromancer',
+    PALADIN: 'paladin',
+    SORCERESS: 'sorceress',
+  });
+
+export function classRegistryIdForCharacterClass(id: CharacterClassId): string {
+  return CLASS_REGISTRY_ID_BY_CHARACTER_CLASS[id];
+}
 
 export function characterClassDisplayName(id: CharacterClassId): string {
   if (id === LEGACY_CHARACTER_CLASS) return 'Guardián';

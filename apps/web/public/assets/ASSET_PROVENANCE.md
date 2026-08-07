@@ -73,6 +73,15 @@ pixel a pixel es lo que permite que el equipamiento se vea como arte real en vez
 vectoriales teñidas por rareza que usa `renderEquipmentVisuals` para los personajes fusionados.
 
 Las proporciones y el rango de valores se midieron sobre el `ranger` ya publicado; el README de
-`scripts/aseprite-gen/` documenta las mediciones. Sigue **pendiente de aprobación**: se activa sólo
-con `?character=hunter` en desarrollo, y la dirección `east` (perfil) necesita una pasada de
-retoque antes de darla por cerrada.
+`scripts/aseprite-gen/` documenta las mediciones. Desde 2026-08-06 el rig está conectado a `AMAZON`
+en producción mediante `layeredCharacterForClass`; ya no depende de `?character=hunter`. La
+aprobación visual definitiva y una pasada de retoque de la dirección `east` siguen pendientes
+antes de declarar este arte como definitivo.
+
+# Bárbara — preview provisional (2026-08-06)
+
+`characters/barbarian/previews/barbarian_preview.png` es un preview de una sola pose generado con
+Codex Image Generation y convertido a alpha desde chroma-key; está escalado a 184×184 con
+nearest-neighbor para revisión visual. No forma parte todavía del manifiesto ejecutable ni del
+runtime: faltan hojas consistentes `idle/walk/basic_attack/hit/death` en tres direcciones, pivote,
+animaciones y validación de procedencia antes de activarlo como personaje jugable.

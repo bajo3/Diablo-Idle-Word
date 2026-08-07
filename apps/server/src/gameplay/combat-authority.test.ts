@@ -26,6 +26,34 @@ function setup() {
 }
 
 describe('CombatAuthority', () => {
+  it('resolves the Barbarian vertical-slice ability through its own profile', () => {
+    const { instances, authority } = setup();
+    const result = authority.apply(
+      {
+        userId: 'user:one',
+        characterId: 'character:one',
+        operationId: 'combat:barbarian-cleave',
+        classId: 'BARBARIAN',
+        abilityId: 'ability.barbarian.cleave',
+        targetId: 'enemy:forest:one',
+        nowMs: 1_000,
+      },
+      instances,
+    );
+    expect(result).toMatchObject({
+      abilityId: 'ability.barbarian.cleave',
+      pending: true,
+      hits: [],
+    });
+    const resolved = authority.advance('character:one', 1_220, instances)[0]!;
+    expect(resolved).toMatchObject({
+      abilityId: 'ability.barbarian.cleave',
+      pending: false,
+      hits: [{ targetId: 'enemy:forest:one' }],
+    });
+    expect(resolved.damage).toBeGreaterThan(0);
+  });
+
   it('validates and resolves a server-owned attack with deterministic damage', () => {
     const { instances, authority } = setup();
     const first = authority.apply(

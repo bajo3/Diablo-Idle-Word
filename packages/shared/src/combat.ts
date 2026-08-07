@@ -12,7 +12,7 @@ export type RandomSource = Readonly<{
   next(): number;
 }>;
 export type GuardianCombatTuning = Readonly<{
-  formulaVersion: 'guardian-combat.1';
+  formulaVersion: 'guardian-combat.1' | 'barbarian-combat.1';
   level: number;
   strength: number;
   dexterity: number;

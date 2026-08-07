@@ -18,6 +18,15 @@ import {
 } from '../data/uiPresentation';
 
 type AbilityKey = 'slash' | 'powerStrike' | 'whirlwind' | 'ironSkin';
+type AbilitySlotDefinition = {
+  key: AbilityKey;
+  abilityId: string;
+  name: string;
+  icon: IconName;
+  bind: string;
+  cooldownMs: number;
+  tone: UiTone;
+};
 type CompactPanel = 'bonuses' | 'party' | 'chat' | 'notifications';
 
 type GameHudOverlayProps = {
@@ -44,15 +53,7 @@ type GameHudOverlayProps = {
   onExit?: (() => void) | undefined;
 };
 
-const ABILITY_SLOTS: readonly {
-  key: AbilityKey;
-  abilityId: string;
-  name: string;
-  icon: IconName;
-  bind: string;
-  cooldownMs: number;
-  tone: UiTone;
-}[] = [
+const GUARDIAN_ABILITY_SLOTS: readonly AbilitySlotDefinition[] = [
   {
     key: 'ironSkin',
     abilityId: 'ability.guardian.iron_skin',
@@ -91,6 +92,42 @@ const ABILITY_SLOTS: readonly {
   },
 ];
 
+const BARBARIAN_ABILITY_SLOTS: readonly AbilitySlotDefinition[] = [
+  {
+    key: 'ironSkin',
+    abilityId: 'ability.barbarian.rallying_hide',
+    name: 'Piel de batalla',
+    icon: 'shield',
+    bind: 'E',
+    cooldownMs: 12_000,
+    tone: 'accent',
+  },
+  {
+    key: 'powerStrike',
+    abilityId: 'ability.barbarian.berserker_oath',
+    name: 'Juramento berserker',
+    icon: 'fury',
+    bind: 'Q',
+    cooldownMs: 14_000,
+    tone: 'corruption',
+  },
+  {
+    key: 'slash',
+    abilityId: 'ability.barbarian.cleave',
+    name: 'Hendidura',
+    icon: 'sword',
+    bind: 'LMB',
+    cooldownMs: 550,
+    tone: 'danger',
+  },
+];
+
+function abilitySlotsForClass(
+  classId: ProgressionSnapshot['class'],
+): readonly AbilitySlotDefinition[] {
+  return classId === 'BARBARIAN' ? BARBARIAN_ABILITY_SLOTS : GUARDIAN_ABILITY_SLOTS;
+}
+
 export function GameHudOverlay({
   hud,
   progression,
@@ -113,6 +150,7 @@ export function GameHudOverlay({
   const [draft, setDraft] = useState('');
   const healthPct = percentage(hud.health, hud.maxHealth);
   const furyPct = percentage(hud.fury, hud.maxFury);
+  const resourceLabel = progression?.class === 'BARBARIAN' ? 'RABIA' : 'FURIA';
   const connectionTone: UiTone =
     hud.connection === 'online' ? 'accent' : hud.connection === 'offline' ? 'danger' : 'gold';
   const connectionLabel = {
@@ -127,14 +165,16 @@ export function GameHudOverlay({
   const notifications = hud.notifications.length > 0 ? hud.notifications : UI_NOTIFICATIONS;
   const chatLines =
     chatTab === 'chat' ? UI_CHAT : UI_CHAT.filter((line) => line.author === '[Sistema]');
+  const abilitySlots =
+    progression === undefined ? GUARDIAN_ABILITY_SLOTS : abilitySlotsForClass(progression.class);
   const activeAbilitySlots =
     progression === undefined
-      ? ABILITY_SLOTS
+      ? GUARDIAN_ABILITY_SLOTS
       : progression.skills
           .filter((skill) => skill.equipped && skill.unlocked)
           .sort((a, b) => (a.barSlot ?? 0) - (b.barSlot ?? 0))
-          .map((skill) => ABILITY_SLOTS.find((slot) => slot.abilityId === skill.abilityId))
-          .filter((slot): slot is (typeof ABILITY_SLOTS)[number] => slot !== undefined);
+          .map((skill) => abilitySlots.find((slot) => slot.abilityId === skill.abilityId))
+          .filter((slot): slot is AbilitySlotDefinition => slot !== undefined);
 
   return (
     <section
@@ -193,7 +233,13 @@ export function GameHudOverlay({
           </div>
         </div>
         <VitalBar kind="hp" label="VIDA" value={hud.health} max={hud.maxHealth} pct={healthPct} />
-        <VitalBar kind="fury" label="FURIA" value={hud.fury} max={hud.maxFury} pct={furyPct} />
+        <VitalBar
+          kind="fury"
+          label={resourceLabel}
+          value={hud.fury}
+          max={hud.maxFury}
+          pct={furyPct}
+        />
         {progression ? (
           <div
             aria-label="Experiencia del personaje"

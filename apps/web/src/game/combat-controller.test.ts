@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { constrainKnockbackSweep, LocalCombatController } from './combat-controller';
+import {
+  barbarianCombatTuning,
+  combatTuningForClass,
+  constrainKnockbackSweep,
+  LocalCombatController,
+} from './combat-controller';
 
 function testController() {
   let time = 0;
@@ -18,6 +23,35 @@ function testController() {
   return { controller, setTime: (next: number) => (time = next) };
 }
 describe('character profile drives combat', () => {
+  it('selects the Barbarian tuning and maps its cleave to the local primary slot', () => {
+    expect(combatTuningForClass('BARBARIAN')).toBe(barbarianCombatTuning);
+    let time = 0;
+    const controller = new LocalCombatController(
+      { now: () => time },
+      { nextInt: (minimum: number) => minimum, next: () => 1 },
+      undefined,
+      'BARBARIAN',
+    );
+    controller.addDummy({
+      id: 'dummy:barbarian',
+      position: { x: 50, y: 0 },
+      armor: 0,
+      health: 1000,
+      maxHealth: 1000,
+    });
+    const accepted = controller.activate(
+      'slash',
+      'execution:barbarian-cleave',
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+    );
+    expect(accepted.some((event) => event.type === 'abilityAccepted')).toBe(true);
+    time = 220;
+    const hit = controller.update().find((event) => event.type === 'damageApplied');
+    expect(hit?.type).toBe('damageApplied');
+    expect(controller.snapshot().maxFury).toBe(120);
+  });
+
   it('raises max health with Vitality while preserving the current health fraction', () => {
     const { controller } = testController();
     const before = controller.snapshot();

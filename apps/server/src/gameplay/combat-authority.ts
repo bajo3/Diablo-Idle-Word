@@ -14,74 +14,101 @@ import {
   type GuardianAbilityKey,
   type GuardianCombatState,
   type GuardianCombatTuning,
+  type CharacterClassId,
   type EnemyAbilityTarget,
   type InstanceEnemyState,
 } from '@brecha/shared';
 
 import type { ActiveInstanceRegistry } from './instance-registry.js';
 
-const ABILITY_KEYS: Readonly<Record<string, GuardianAbilityKey>> = Object.freeze({
+type CombatData = typeof GAME_DATA.guardianCombat | typeof GAME_DATA.barbarianCombat;
+type CombatProfile = Readonly<{
+  abilityKeys: Readonly<Record<string, GuardianAbilityKey>>;
+  tuning: GuardianCombatTuning;
+}>;
+
+function buildProfile(
+  combatData: CombatData,
+  abilityKeys: Readonly<Record<string, GuardianAbilityKey>>,
+): CombatProfile {
+  const tuningFor = (abilityId: string): GuardianCombatTuning['abilities']['slash'] => {
+    const ability = combatData.abilities.find(({ id }) => id === abilityId);
+    if (ability === undefined) throw new Error(`Missing combat ability: ${abilityId}`);
+    return {
+      id: ability.id,
+      furyCost: ability.furyCost,
+      cooldownMs: ability.cooldownMs,
+      damageMultiplier: ability.damageMultiplier,
+      ...(ability.rangePx === undefined ? {} : { rangePx: ability.rangePx }),
+      ...(ability.arcDegrees === undefined ? {} : { arcDegrees: ability.arcDegrees }),
+      ...(ability.maxTargets === undefined ? {} : { maxTargets: ability.maxTargets }),
+      ...(ability.impactMs === undefined ? {} : { impactMs: ability.impactMs }),
+      ...(ability.recoveryMs === undefined ? {} : { recoveryMs: ability.recoveryMs }),
+      ...(ability.radiusPx === undefined ? {} : { radiusPx: ability.radiusPx }),
+      ...(ability.tickOffsetsMs === undefined ? {} : { tickOffsetsMs: ability.tickOffsetsMs }),
+      ...(ability.durationMs === undefined ? {} : { durationMs: ability.durationMs }),
+      ...(ability.movementMultiplier === undefined
+        ? {}
+        : { movementMultiplier: ability.movementMultiplier }),
+      ...(ability.knockbackPx === undefined ? {} : { knockbackPx: ability.knockbackPx }),
+      ...(ability.damageTakenMultiplier === undefined
+        ? {}
+        : { damageTakenMultiplier: ability.damageTakenMultiplier }),
+      ...(ability.furyOnHit === undefined ? {} : { furyOnHit: ability.furyOnHit }),
+    };
+  };
+  const keyFor = (key: GuardianAbilityKey): string => {
+    const abilityId = Object.entries(abilityKeys).find(([, value]) => value === key)?.[0];
+    if (abilityId === undefined) throw new Error(`Missing mapped ability for ${key}`);
+    return abilityId;
+  };
+  return {
+    abilityKeys,
+    tuning: Object.freeze({
+      formulaVersion: combatData.combatFormulaVersion,
+      level: combatData.level,
+      strength: combatData.attributes.strength,
+      dexterity: combatData.attributes.dexterity,
+      vitality: combatData.attributes.vitality,
+      weaponDamage: combatData.weaponDamage,
+      maxFury: combatData.maxFury,
+      criticalBaseChance: combatData.criticalBaseChance,
+      criticalPerDexterity: combatData.criticalPerDexterity,
+      criticalCap: combatData.criticalCap,
+      criticalMultiplier: combatData.criticalMultiplier,
+      armorDenominatorBase: combatData.armorDenominatorBase,
+      armorDenominatorPerLevel: combatData.armorDenominatorPerLevel,
+      armorReductionCap: combatData.armorReductionCap,
+      furyOnDamageTaken: combatData.furyOnDamageTaken,
+      furyDecayDelayMs: combatData.furyDecayDelayMs,
+      furyDecayPerSecond: combatData.furyDecayPerSecond,
+      battleThirst: combatData.battleThirst,
+      abilities: {
+        slash: tuningFor(keyFor('slash')),
+        powerStrike: tuningFor(keyFor('powerStrike')),
+        whirlwind: tuningFor(keyFor('whirlwind')),
+        ironSkin: tuningFor(keyFor('ironSkin')),
+      },
+    }),
+  };
+}
+
+const guardianProfile = buildProfile(GAME_DATA.guardianCombat, {
   'ability.guardian.slash': 'slash',
   'ability.guardian.power_strike': 'powerStrike',
   'ability.guardian.whirlwind': 'whirlwind',
   'ability.guardian.iron_skin': 'ironSkin',
 });
-
-const combatData = GAME_DATA.guardianCombat;
-
-function tuningFor(abilityId: string): GuardianCombatTuning['abilities']['slash'] {
-  const ability = combatData.abilities.find(({ id }) => id === abilityId);
-  if (ability === undefined) throw new Error(`Missing Guardian combat ability: ${abilityId}`);
-  return {
-    id: ability.id,
-    furyCost: ability.furyCost,
-    cooldownMs: ability.cooldownMs,
-    damageMultiplier: ability.damageMultiplier,
-    ...(ability.rangePx === undefined ? {} : { rangePx: ability.rangePx }),
-    ...(ability.arcDegrees === undefined ? {} : { arcDegrees: ability.arcDegrees }),
-    ...(ability.maxTargets === undefined ? {} : { maxTargets: ability.maxTargets }),
-    ...(ability.impactMs === undefined ? {} : { impactMs: ability.impactMs }),
-    ...(ability.recoveryMs === undefined ? {} : { recoveryMs: ability.recoveryMs }),
-    ...(ability.radiusPx === undefined ? {} : { radiusPx: ability.radiusPx }),
-    ...(ability.tickOffsetsMs === undefined ? {} : { tickOffsetsMs: ability.tickOffsetsMs }),
-    ...(ability.durationMs === undefined ? {} : { durationMs: ability.durationMs }),
-    ...(ability.movementMultiplier === undefined
-      ? {}
-      : { movementMultiplier: ability.movementMultiplier }),
-    ...(ability.knockbackPx === undefined ? {} : { knockbackPx: ability.knockbackPx }),
-    ...(ability.damageTakenMultiplier === undefined
-      ? {}
-      : { damageTakenMultiplier: ability.damageTakenMultiplier }),
-    ...(ability.furyOnHit === undefined ? {} : { furyOnHit: ability.furyOnHit }),
-  };
-}
-
-const tuning: GuardianCombatTuning = Object.freeze({
-  formulaVersion: combatData.combatFormulaVersion,
-  level: combatData.level,
-  strength: combatData.attributes.strength,
-  dexterity: combatData.attributes.dexterity,
-  vitality: combatData.attributes.vitality,
-  weaponDamage: combatData.weaponDamage,
-  maxFury: combatData.maxFury,
-  criticalBaseChance: combatData.criticalBaseChance,
-  criticalPerDexterity: combatData.criticalPerDexterity,
-  criticalCap: combatData.criticalCap,
-  criticalMultiplier: combatData.criticalMultiplier,
-  armorDenominatorBase: combatData.armorDenominatorBase,
-  armorDenominatorPerLevel: combatData.armorDenominatorPerLevel,
-  armorReductionCap: combatData.armorReductionCap,
-  furyOnDamageTaken: combatData.furyOnDamageTaken,
-  furyDecayDelayMs: combatData.furyDecayDelayMs,
-  furyDecayPerSecond: combatData.furyDecayPerSecond,
-  battleThirst: combatData.battleThirst,
-  abilities: {
-    slash: tuningFor('ability.guardian.slash'),
-    powerStrike: tuningFor('ability.guardian.power_strike'),
-    whirlwind: tuningFor('ability.guardian.whirlwind'),
-    ironSkin: tuningFor('ability.guardian.iron_skin'),
-  },
+const barbarianProfile = buildProfile(GAME_DATA.barbarianCombat, {
+  'ability.barbarian.cleave': 'slash',
+  'ability.barbarian.berserker_oath': 'powerStrike',
+  'ability.barbarian.blood_rush': 'whirlwind',
+  'ability.barbarian.rallying_hide': 'ironSkin',
 });
+
+function profileForClass(classId: CharacterClassId | undefined): CombatProfile {
+  return classId === 'BARBARIAN' ? barbarianProfile : guardianProfile;
+}
 
 /** Server combat sampling interval; impacts still resolve against their exact configured timestamp. */
 export const COMBAT_TICK_INTERVAL_MS = 50 as const;
@@ -91,6 +118,7 @@ export type CombatCommandInput = Readonly<{
   characterId: string;
   operationId: string;
   abilityId: string;
+  classId?: CharacterClassId;
   targetId?: string;
   facing?: Readonly<{ x: number; y: number }>;
   nowMs: number;
@@ -162,6 +190,7 @@ export class CombatOperationConflictError extends Error {
 type StoredResult = Readonly<{
   userId: string;
   characterId: string;
+  classId: CharacterClassId | undefined;
   abilityId: string;
   targetId: string | undefined;
   result: CombatResult;
@@ -186,6 +215,7 @@ type CombatHealthAccess = Pick<ActiveInstanceRegistry, 'playerFor' | 'stateFor' 
 /** Server-side, process-local combat adapter. The pure damage formula remains in shared. */
 export class CombatAuthority {
   private readonly states = new Map<string, GuardianCombatState>();
+  private readonly profiles = new Map<string, CombatProfile>();
   private readonly results = new Map<string, StoredResult>();
   private readonly pending = new Map<string, PendingCombatImpact[]>();
 
@@ -197,6 +227,8 @@ export class CombatAuthority {
   ): EnemyAbilityTarget | undefined {
     const player = instances.playerFor(characterId);
     if (player === undefined) return undefined;
+    const profile = this.profiles.get(characterId) ?? guardianProfile;
+    const tuning = profile.tuning;
     let state = this.states.get(characterId) ?? {
       ...createGuardianCombatState(tuning),
       health: player.health,
@@ -231,6 +263,8 @@ export class CombatAuthority {
   ): EnemyDamageResolution | undefined {
     const player = instances.playerFor(characterId);
     if (player === undefined) return undefined;
+    const profile = this.profiles.get(characterId) ?? guardianProfile;
+    const tuning = profile.tuning;
     let state = this.states.get(characterId) ?? {
       ...createGuardianCombatState(tuning),
       health: player.health,
@@ -259,6 +293,8 @@ export class CombatAuthority {
     if (queued.length === 0) return [];
     const state = this.states.get(characterId);
     if (state === undefined) return [];
+    const profile = this.profiles.get(characterId) ?? guardianProfile;
+    const tuning = profile.tuning;
     if (!Number.isInteger(nowMs) || nowMs < state.lastCombatAt)
       throw new CombatCommandError('INVALID_STATE', 'The combat clock cannot move backwards.');
     let nextState = advanceGuardianCombat(tuning, state, state.lastCombatAt, nowMs);
@@ -326,6 +362,7 @@ export class CombatAuthority {
       if (
         existing.userId !== input.userId ||
         existing.characterId !== input.characterId ||
+        existing.classId !== input.classId ||
         existing.abilityId !== input.abilityId ||
         existing.targetId !== input.targetId
       )
@@ -337,9 +374,12 @@ export class CombatAuthority {
     const player = instances.playerFor(input.characterId);
     if (player === undefined || instances.stateFor(input.characterId) === undefined)
       throw new CombatCommandError('INVALID_STATE', 'The active combat actor is unavailable.');
-    const ability = ABILITY_KEYS[input.abilityId];
+    const profile = profileForClass(input.classId);
+    this.profiles.set(input.characterId, profile);
+    const ability = profile.abilityKeys[input.abilityId];
     if (ability === undefined)
       throw new CombatCommandError('INVALID_ABILITY', 'The requested ability is not available.');
+    const tuning = profile.tuning;
     let state = this.states.get(input.characterId) ?? createGuardianCombatState(tuning);
     if (input.nowMs < state.lastCombatAt)
       throw new CombatCommandError('INVALID_STATE', 'The combat clock cannot move backwards.');
@@ -478,6 +518,7 @@ export class CombatAuthority {
     this.results.set(input.operationId, {
       userId: input.userId,
       characterId: input.characterId,
+      classId: input.classId,
       abilityId: input.abilityId,
       targetId: input.targetId,
       result,
@@ -498,6 +539,8 @@ export class CombatAuthority {
     const instance = instances.stateFor(impact.characterId);
     if (instance === undefined)
       throw new CombatCommandError('INVALID_STATE', 'The combat instance disappeared.');
+    const profile = this.profiles.get(impact.characterId) ?? guardianProfile;
+    const tuning = profile.tuning;
     const config = tuning.abilities[impact.ability];
     const hits: CombatHit[] = [];
     let nextEnemies = instance.enemies;

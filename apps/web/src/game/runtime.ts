@@ -525,6 +525,7 @@ class PooledArrowVisuals {
 }
 
 class TestScene extends Phaser.Scene {
+  private readonly characterClass: CharacterClassId;
   private facing: Direction4 = 'down';
   private paused = false;
   private connection: RuntimeConnection = 'online';
@@ -679,6 +680,7 @@ class TestScene extends Phaser.Scene {
     characterClass?: CharacterClassId,
   ) {
     super('test');
+    this.characterClass = characterClass ?? 'GUARDIAN';
     const search = typeof window === 'undefined' ? '' : window.location.search;
     this.stressEnabled = enemyStressEnabled(search, import.meta.env.MODE === 'development');
     this.enemyStressCount = this.stressEnabled
@@ -689,7 +691,7 @@ class TestScene extends Phaser.Scene {
     // shipped Guardian). `?character=` remains as a development-only manual override for trying rig
     // art that has no class wired to it yet.
     this.layeredCharacter =
-      layeredCharacterForClass(characterClass) ??
+      layeredCharacterForClass(this.characterClass) ??
       layeredCharacterFromSearch(search, import.meta.env.MODE === 'development');
   }
   public create(): void {
@@ -705,6 +707,7 @@ class TestScene extends Phaser.Scene {
       { now: () => this.combatNow() },
       createSeededRandom(this.runSeed),
       constrainDummyKnockback,
+      this.characterClass,
     );
     // A profile set before Phaser finished booting is applied as soon as the controller exists.
     if (this.characterProfile !== undefined)
@@ -1623,7 +1626,7 @@ class TestScene extends Phaser.Scene {
     this.activate(pointer.rightButtonDown() ? 'powerStrike' : 'slash');
   }
   private onWhirlwind(): void {
-    this.activate('whirlwind');
+    this.activate(this.characterClass === 'BARBARIAN' ? 'powerStrike' : 'whirlwind');
   }
   private onIronSkin(): void {
     this.activate('ironSkin');

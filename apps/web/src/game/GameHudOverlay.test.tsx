@@ -141,6 +141,82 @@ describe('GameHudOverlay', () => {
     expect(screen.getByText('60 / 200 EXP')).toBeTruthy();
   });
 
+  it('renders the Barbarian vertical-slice abilities instead of Guardian slots', () => {
+    renderHud(
+      {},
+      {
+        schemaVersion: 1,
+        characterId: 'character:barbarian',
+        class: 'BARBARIAN',
+        revision: 2,
+        level: 1,
+        experience: 0,
+        xpInLevel: 0,
+        xpToNextLevel: 100,
+        attributePoints: 0,
+        totalAttributePoints: 0,
+        attributes: { strength: 14, dexterity: 6, intelligence: 3, vitality: 14 },
+        derivedStats: {
+          maxHealth: 240,
+          physicalDamageMin: 32,
+          physicalDamageMax: 43,
+          armor: 40,
+          criticalChancePercent: 6,
+          attackSpeedPercent: 0,
+        },
+        skills: [
+          {
+            abilityId: 'ability.barbarian.cleave',
+            displayName: 'Hendidura',
+            description: 'Ataque amplio.',
+            level: 1,
+            unlocked: true,
+            unlockLevel: 1,
+            equipped: true,
+            barSlot: 0,
+            kind: 'basic_attack',
+          },
+          {
+            abilityId: 'ability.barbarian.berserker_oath',
+            displayName: 'Juramento berserker',
+            description: 'Golpe pesado.',
+            level: 1,
+            unlocked: true,
+            unlockLevel: 1,
+            equipped: true,
+            barSlot: 1,
+            kind: 'ultimate',
+          },
+          {
+            abilityId: 'ability.barbarian.rallying_hide',
+            displayName: 'Piel de batalla',
+            description: 'Mitiga daño.',
+            level: 1,
+            unlocked: true,
+            unlockLevel: 1,
+            equipped: true,
+            barSlot: 2,
+            kind: 'active',
+          },
+        ],
+        equippedAbilityIds: [
+          'ability.barbarian.cleave',
+          'ability.barbarian.berserker_oath',
+          'ability.barbarian.rallying_hide',
+        ],
+        buildFingerprint: 'b'.repeat(64),
+        gameDataVersion: 'test',
+        balanceVersion: 'test',
+        formulaVersion: 'test',
+      },
+    );
+    expect(screen.getByRole('button', { name: 'Hendidura (LMB)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Juramento berserker (Q)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Piel de batalla (E)' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Golpe poderoso (RMB)' })).toBeNull();
+    expect(screen.getByText('RABIA')).toBeTruthy();
+  });
+
   it('makes a downed Guardian visibly non-terminal and blocks combat controls', () => {
     renderHud({ downed: true, health: 0 });
 

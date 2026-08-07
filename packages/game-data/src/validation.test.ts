@@ -225,6 +225,37 @@ describe('game data catalog', () => {
     expect(data.classRegistry.classes).toContainEqual(
       expect.objectContaining({ classId: 'guardian', resource: 'fury' }),
     );
+    expect(data.classRegistry.classes.map(({ classId }) => classId)).toEqual([
+      'guardian',
+      'amazon',
+      'assassin',
+      'barbarian',
+      'druid',
+      'necromancer',
+      'paladin',
+      'sorceress',
+    ]);
+    expect(data.classRegistry.classes.find(({ classId }) => classId === 'barbarian')).toMatchObject(
+      {
+        resource: 'rage',
+        branchIds: ['branch.barbarian.bloodsong'],
+      },
+    );
+    expect(data.classRegistry.branches).toContainEqual(
+      expect.objectContaining({
+        branchId: 'branch.barbarian.bloodsong',
+        classId: 'barbarian',
+      }),
+    );
+    expect(data.classRegistry.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          nodeId: 'node.barbarian.bloodsong.berserker_oath',
+          kind: 'ultimate',
+          abilityId: 'ability.barbarian.berserker_oath',
+        }),
+      ]),
+    );
     const missingGuardian: unknown = {
       ...GAME_DATA,
       classRegistry: { ...GAME_DATA.classRegistry, classes: [] },
@@ -252,19 +283,54 @@ describe('game data catalog', () => {
       classRegistry: {
         ...GAME_DATA.classRegistry,
         classes: [
-          {
-            ...GAME_DATA.classRegistry.classes[0]!,
-            // Same length as the real attribute set (schema requires exactly 4) but missing
-            // "vitality" and duplicating "strength", so it fails the *semantic* cross-check below
-            // rather than the Zod shape check.
-            attributeIds: ['strength', 'strength', 'dexterity', 'intelligence'],
-          },
+          ...GAME_DATA.classRegistry.classes.map((classDefinition, index) =>
+            index === 0
+              ? {
+                  ...classDefinition,
+                  // Same length as the real attribute set (schema requires exactly 4) but missing
+                  // "vitality" and duplicating "strength", so it fails the *semantic* cross-check below
+                  // rather than the Zod shape check.
+                  attributeIds: ['strength', 'strength', 'dexterity', 'intelligence'],
+                }
+              : classDefinition,
+          ),
         ],
       },
     };
     expect(() => validateGameData(mismatchedAttributes)).toThrow(
       'Guardian class registry entry has mismatched attribute references',
     );
+  });
+
+  it('validates the M1 expansion registry for five enemies and three zones', () => {
+    const data = validateGameData(GAME_DATA);
+    expect(data.contentExpansion.enemies.map(({ id }) => id)).toEqual([
+      'spore_stalker',
+      'ash_crawler',
+      'veil_wraith',
+      'stonebound_sentinel',
+      'rift_howler',
+    ]);
+    expect(data.contentExpansion.maps).toHaveLength(3);
+    expect(data.contentExpansion.zones).toHaveLength(3);
+    const orphanZone: unknown = {
+      ...GAME_DATA,
+      contentExpansion: {
+        ...GAME_DATA.contentExpansion,
+        zones: [
+          ...GAME_DATA.contentExpansion.zones,
+          {
+            id: 'orphan_zone',
+            displayName: 'Zona huérfana',
+            mapId: 'map.unknown',
+            enemyIds: ['spore_stalker'],
+            awayModeEligible: false,
+            tuningStatus: 'TBD',
+          },
+        ],
+      },
+    };
+    expect(() => validateGameData(orphanZone)).toThrow('Expansion zone references unknown map');
   });
 
   it('ships the Step 11 MVP content budget and a boss legendary entry', () => {

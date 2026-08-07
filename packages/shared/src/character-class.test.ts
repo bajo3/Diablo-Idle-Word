@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHARACTER_CLASS_OPTIONS,
   CharacterClassIdSchema,
+  classRegistryIdForCharacterClass,
   isPlayableCharacterClass,
   LEGACY_CHARACTER_CLASS,
   PLAYABLE_CHARACTER_CLASS_IDS,
@@ -17,11 +18,21 @@ describe('character class catalog', () => {
     expect(CharacterClassIdSchema.parse(LEGACY_CHARACTER_CLASS)).toBe('GUARDIAN');
   });
 
-  it('marks every selectable class as the same provisional combat profile', () => {
-    expect(CHARACTER_CLASS_OPTIONS.every((option) => option.sharedProfile === 'guardian')).toBe(
-      true,
+  it('marks Barbarian as the first differentiated profile while keeping the others provisional', () => {
+    expect(CHARACTER_CLASS_OPTIONS.find((option) => option.id === 'BARBARIAN')?.sharedProfile).toBe(
+      'barbarian',
     );
+    expect(
+      CHARACTER_CLASS_OPTIONS.filter((option) => option.id !== 'BARBARIAN').every(
+        (option) => option.sharedProfile === 'guardian',
+      ),
+    ).toBe(true);
     expect(isPlayableCharacterClass('BARBARIAN')).toBe(true);
     expect(isPlayableCharacterClass('GUARDIAN')).toBe(false);
+  });
+
+  it('maps persisted IDs to data-driven registry IDs', () => {
+    expect(classRegistryIdForCharacterClass('GUARDIAN')).toBe('guardian');
+    expect(classRegistryIdForCharacterClass('BARBARIAN')).toBe('barbarian');
   });
 });

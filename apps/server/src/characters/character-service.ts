@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { BALANCE_VERSION, GAME_DATA_VERSION } from '@brecha/game-data';
+import { BALANCE_VERSION, GAME_DATA, GAME_DATA_VERSION } from '@brecha/game-data';
+import { classAbilityIds } from '@brecha/shared';
 import type { CharacterClassId } from '@brecha/shared';
 
 import type { DatabaseClient } from '../persistence/database.js';
@@ -81,7 +82,11 @@ export class CharacterService {
           skills: {
             create: {
               id: `skill:${randomUUID()}`,
-              abilityId: 'ability.guardian.slash',
+              abilityId:
+                input.class === 'BARBARIAN'
+                  ? (classAbilityIds(GAME_DATA.classRegistry, 'barbarian')[0] ??
+                    'ability.guardian.slash')
+                  : 'ability.guardian.slash',
               level: 1,
               unlocked: true,
               equipped: true,

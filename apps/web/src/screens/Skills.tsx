@@ -69,7 +69,14 @@ export function Skills({
       ) : null}
       {snapshot ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: 16 }}>
-          <Panel eyebrow="Catálogo del Guardián" title="Habilidades">
+          <Panel
+            eyebrow={
+              snapshot.class === 'BARBARIAN' && snapshot.skills.some((skill) => skill.branchId)
+                ? 'Rama · Canto de sangre'
+                : 'Catálogo de habilidades'
+            }
+            title="Habilidades"
+          >
             <div style={{ display: 'grid', gap: 10 }}>
               {snapshot.skills.map((skill) => (
                 <SkillRow
@@ -152,10 +159,16 @@ function SkillRow({
           {skill.description}
         </p>
         <small style={{ color: 'var(--text-dim)' }}>
-          {unlocked ? 'Desbloqueada' : `Se desbloquea en nivel ${skill.unlockLevel}`}
+          {skill.kind === 'passive'
+            ? 'Pasiva · no ocupa ranura'
+            : unlocked
+              ? 'Desbloqueada'
+              : `Se desbloquea en nivel ${skill.unlockLevel}`}
         </small>
       </div>
-      {!unlocked ? (
+      {skill.kind === 'passive' ? (
+        <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>Pasiva</span>
+      ) : !unlocked ? (
         <Button
           disabled={busy}
           onClick={() =>

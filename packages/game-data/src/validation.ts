@@ -164,6 +164,40 @@ export function validateGameData(input: unknown): GameDataCatalog {
   if (guardianClass === undefined) throw new Error('Class registry is missing Guardian');
   if (!hasExactMembers(guardianClass.attributeIds, attributeIds))
     throw new Error('Guardian class registry entry has mismatched attribute references');
+  const barbarianClass = data.classRegistry.classes.find(({ classId }) => classId === 'barbarian');
+  if (barbarianClass === undefined) throw new Error('Class registry is missing Barbarian');
+  if (barbarianClass.resource !== 'rage')
+    throw new Error('Barbarian class registry entry must use rage');
+  const barbarianCombatAbilityIds = new Set(data.barbarianCombat.abilities.map(({ id }) => id));
+  for (const node of data.classRegistry.nodes.filter(({ classId }) => classId === 'barbarian'))
+    if (node.abilityId !== undefined && !barbarianCombatAbilityIds.has(node.abilityId))
+      throw new Error(`Barbarian node references unknown combat ability: ${node.abilityId}`);
+
+  const expansionEnemyIds = data.contentExpansion.enemies.map(({ id }) => id);
+  const expansionMapIds = data.contentExpansion.maps.map(({ id }) => id);
+  const expansionZoneIds = data.contentExpansion.zones.map(({ id }) => id);
+  for (const [group, ids] of [
+    ['expansion enemy', expansionEnemyIds],
+    ['expansion map', expansionMapIds],
+    ['expansion zone', expansionZoneIds],
+  ] as const) {
+    const duplicates = duplicateIds(ids);
+    if (duplicates.length > 0) throw new Error(`Duplicate ${group} IDs: ${duplicates.join(', ')}`);
+  }
+  const expansionEnemyIdSet = new Set(expansionEnemyIds);
+  const expansionZoneIdSet = new Set(expansionZoneIds);
+  const expansionMapIdSet = new Set(expansionMapIds);
+  for (const map of data.contentExpansion.maps) {
+    if (!expansionZoneIdSet.has(map.zoneId))
+      throw new Error(`Expansion map references unknown zone: ${map.id}`);
+  }
+  for (const zone of data.contentExpansion.zones) {
+    if (!expansionMapIdSet.has(zone.mapId))
+      throw new Error(`Expansion zone references unknown map: ${zone.id}`);
+    for (const enemyId of zone.enemyIds)
+      if (!expansionEnemyIdSet.has(enemyId))
+        throw new Error(`Expansion zone references unknown enemy: ${enemyId}`);
+  }
 
   const forest = data.endlessForest;
   if (forest.levels.length !== forest.maximumLevel - forest.minimumLevel + 1)

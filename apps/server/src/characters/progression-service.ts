@@ -3,6 +3,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { BALANCE_VERSION, GAME_DATA, GAME_DATA_VERSION } from '@brecha/game-data';
 import {
   AttributesSchema,
+  classRegistryIdForCharacterClass,
+  classSkillNodes,
+  type SkillNodeKind,
   deriveCharacterStats,
   totalAttributePoints,
   type CharacterClassId,
@@ -53,6 +56,12 @@ export type ProgressionSkillSnapshot = Readonly<{
   equipped: boolean;
   barSlot: number | null;
   level: number;
+  nodeId?: string;
+  branchId?: string;
+  kind?: SkillNodeKind | 'basic_attack';
+  prerequisiteNodeId?: string;
+  pointCost?: number;
+  effectIds?: readonly string[];
 }>;
 export type ProgressionSnapshot = Readonly<{
   schemaVersion: 1;
@@ -146,12 +155,13 @@ export class ProgressionService {
     userId: string,
     characterId: string,
     abilityId: string,
-  ): Promise<void> {
+  ): Promise<ProgressionSnapshot> {
     const snapshot = await this.getOwned(userId, characterId);
     const skill = snapshot.skills.find(
       (entry) => entry.abilityId === normalizeAbilityId(abilityId),
     );
     if (skill === undefined || !skill.unlocked) throw new SkillLockedError();
+    return snapshot;
   }
 
   public allocateAttributes(input: AllocateAttributesInput): Promise<ProgressionReceipt> {
@@ -181,18 +191,18 @@ export class ProgressionService {
       'learn_skill',
       LearnSkillInputSchema.parse(input),
       async (transaction, character, value) => {
-        const ability = guardianAbility(value.abilityId);
+        const ability = skillDefinitionFor(character.class, value.abilityId);
         if (ability === undefined) throw new SkillNotFoundError();
         if (character.progress!.level < ability.unlockLevel) throw new SkillLockedError();
         const existing = character.skills.find(
-          (skill) => normalizeAbilityId(skill.abilityId) === ability.id,
+          (skill) => normalizeAbilityId(skill.abilityId) === normalizeAbilityId(ability.id),
         );
         if (existing === undefined) {
           await transaction.characterSkill.create({
             data: {
               id: `skill:${randomUUID()}`,
               characterId: value.characterId,
-              abilityId: ability.id,
+              abilityId: normalizeAbilityId(ability.id),
               level: 1,
               unlocked: true,
               equipped: false,
@@ -324,8 +334,41 @@ export class ProgressionService {
   }
 }
 
-function guardianAbility(abilityId: string) {
-  return GAME_DATA.abilities.find((ability) => ability.id === normalizeAbilityId(abilityId));
+type SkillDefinition = Readonly<{
+  id: string;
+  displayName: string;
+  description: string;
+  unlockLevel: number;
+  nodeId?: string;
+  branchId?: string;
+  kind?: SkillNodeKind | 'basic_attack';
+  prerequisiteNodeId?: string;
+  pointCost?: number;
+  effectIds?: readonly string[];
+}>;
+
+function skillDefinitionsFor(classId: CharacterClassId): readonly SkillDefinition[] {
+  if (classId === 'GUARDIAN') return GAME_DATA.abilities;
+  const registryId = classRegistryIdForCharacterClass(classId);
+  return classSkillNodes(GAME_DATA.classRegistry, registryId).map((node) => ({
+    id: node.abilityId ?? node.nodeId,
+    displayName: node.displayName,
+    description: node.description,
+    unlockLevel: node.requirements.unlockLevel,
+    nodeId: node.nodeId,
+    branchId: node.branchId,
+    kind: node.kind,
+    ...(node.requirements.prerequisiteNodeId === undefined
+      ? {}
+      : { prerequisiteNodeId: node.requirements.prerequisiteNodeId }),
+    pointCost: node.requirements.pointCost,
+    ...(node.effectIds === undefined ? {} : { effectIds: node.effectIds }),
+  }));
+}
+
+function skillDefinitionFor(classId: CharacterClassId, abilityId: string) {
+  const normalized = normalizeAbilityId(abilityId);
+  return skillDefinitionsFor(classId).find((ability) => ability.id === normalized);
 }
 
 function normalizeAbilityId(abilityId: string): string {
@@ -364,7 +407,7 @@ function toSnapshot(character: ProgressionCharacter): ProgressionSnapshot {
   const thresholds = GAME_DATA.progression.xpToReachLevel;
   const xpStart = BigInt(thresholds[level - 1] ?? 0);
   const xpNext = BigInt(thresholds[level] ?? thresholds[level - 1] ?? 0);
-  const skills = GAME_DATA.abilities.map((ability) => {
+  const skills = skillDefinitionsFor(character.class).map((ability) => {
     const stored = character.skills.find(
       (skill) => normalizeAbilityId(skill.abilityId) === ability.id,
     );
@@ -377,6 +420,14 @@ function toSnapshot(character: ProgressionCharacter): ProgressionSnapshot {
       equipped: stored?.equipped ?? false,
       barSlot: stored?.barSlot ?? null,
       level: stored?.level ?? 0,
+      ...(ability.nodeId === undefined ? {} : { nodeId: ability.nodeId }),
+      ...(ability.branchId === undefined ? {} : { branchId: ability.branchId }),
+      ...(ability.kind === undefined ? {} : { kind: ability.kind }),
+      ...(ability.prerequisiteNodeId === undefined
+        ? {}
+        : { prerequisiteNodeId: ability.prerequisiteNodeId }),
+      ...(ability.pointCost === undefined ? {} : { pointCost: ability.pointCost }),
+      ...(ability.effectIds === undefined ? {} : { effectIds: ability.effectIds }),
     };
   });
   const equippedAbilityIds = skills

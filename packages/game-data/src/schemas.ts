@@ -159,6 +159,59 @@ export const ZoneDefinitionSchema = z.strictObject({
   mapId: IdSchema,
   tuningStatus: TuningStatusSchema,
 });
+
+/**
+ * Data-only registry for the next content wave. It deliberately does not feed the active Forest
+ * spawn list yet: M1 proves IDs and cross-references; M4/M5 will add tuning, assets and runtime
+ * activation one vertical slice at a time.
+ */
+export const ExpansionEnemyDefinitionSchema = z.strictObject({
+  id: IdSchema,
+  displayName: z.string().trim().min(1).max(80),
+  archetype: z.enum(['melee', 'ranged', 'caster', 'summoner']),
+  behaviors: z.array(EnemyBehaviorSchema).min(1),
+  aiStates: z
+    .array(
+      z.enum([
+        'idle',
+        'patrol',
+        'detect',
+        'chase',
+        'attack',
+        'use_ability',
+        'retreat',
+        'stunned',
+        'dead',
+      ]),
+    )
+    .length(9),
+  tuningStatus: TuningStatusSchema,
+});
+
+export const ExpansionMapDefinitionSchema = z.strictObject({
+  id: IdSchema,
+  zoneId: IdSchema,
+  backgroundAssetId: IdSchema,
+  format: z.literal('tiled'),
+  version: VersionSchema,
+  tuningStatus: TuningStatusSchema,
+});
+
+export const ExpansionZoneDefinitionSchema = z.strictObject({
+  id: IdSchema,
+  displayName: z.string().trim().min(1).max(80),
+  mapId: IdSchema,
+  enemyIds: z.array(IdSchema).min(1),
+  awayModeEligible: z.boolean(),
+  tuningStatus: TuningStatusSchema,
+});
+
+export const ContentExpansionRegistrySchema = z.strictObject({
+  registryVersion: VersionSchema,
+  enemies: z.array(ExpansionEnemyDefinitionSchema).min(5),
+  maps: z.array(ExpansionMapDefinitionSchema).min(3),
+  zones: z.array(ExpansionZoneDefinitionSchema).min(3),
+});
 export const MissionDefinitionSchema = z.strictObject({
   id: z.literal('mission.corrupted_forest.breach'),
   zoneId: z.literal('corrupted_forest'),
@@ -246,6 +299,36 @@ export const GuardianCombatSchema = z.strictObject({
     windowMs: z.literal(10_000),
   }),
   abilities: z.array(GuardianCombatAbilitySchema).length(5),
+});
+/** Provisional combat tuning for the first non-Guardian vertical slice. */
+export const BarbarianCombatSchema = z.strictObject({
+  combatFormulaVersion: z.literal('barbarian-combat.1'),
+  tuningStatus: z.literal('PROVISIONAL'),
+  level: z.literal(1),
+  attributes: z.strictObject({
+    strength: z.literal(14),
+    dexterity: z.literal(6),
+    intelligence: z.literal(3),
+    vitality: z.literal(14),
+  }),
+  weaponDamage: z.tuple([z.literal(12), z.literal(18)]),
+  maxFury: z.literal(120),
+  criticalBaseChance: z.literal(0.04),
+  criticalPerDexterity: z.literal(0.004),
+  criticalCap: z.literal(0.45),
+  criticalMultiplier: z.literal(1.5),
+  armorDenominatorBase: z.literal(100),
+  armorDenominatorPerLevel: z.literal(50),
+  armorReductionCap: z.literal(0.75),
+  furyOnDamageTaken: z.literal(7),
+  furyDecayDelayMs: z.literal(3500),
+  furyDecayPerSecond: z.literal(4),
+  battleThirst: z.strictObject({
+    healFraction: z.literal(0.04),
+    capFraction: z.literal(0.12),
+    windowMs: z.literal(10_000),
+  }),
+  abilities: z.array(GuardianCombatAbilitySchema).length(4),
 });
 /**
  * A static, data-driven damage source used to make incoming damage honestly verifiable in the
@@ -422,6 +505,7 @@ export const GameDataCatalogSchema = z.strictObject({
   balance: BalanceSchema,
   progression: CharacterProgressionSchema,
   guardianCombat: GuardianCombatSchema,
+  barbarianCombat: BarbarianCombatSchema,
   guardian: GuardianDefinitionSchema,
   attributes: z.array(AttributeDefinitionSchema).length(4),
   abilities: z.array(GuardianAbilitySchema).length(5),
@@ -442,6 +526,7 @@ export const GameDataCatalogSchema = z.strictObject({
   assets: z.array(AssetManifestEntrySchema).min(1),
   maps: z.array(MapDefinitionSchema).length(1),
   hazards: z.array(HazardDefinitionSchema).length(1),
+  contentExpansion: ContentExpansionRegistrySchema,
   /**
    * Post-MVP class expansion registry (M1, `docs/plans/post-goal-class-expansion.md`). Carries
    * Guardian's identity as one `ClassDefinition` for shape parity; Guardian's actual abilities and
@@ -476,4 +561,8 @@ export type GuardianCombat = z.infer<typeof GuardianCombatSchema>;
 export type MapDefinition = z.infer<typeof MapDefinitionSchema>;
 export type HazardDefinition = z.infer<typeof HazardDefinitionSchema>;
 export type CharacterProgression = z.infer<typeof CharacterProgressionSchema>;
+export type ExpansionEnemyDefinition = z.infer<typeof ExpansionEnemyDefinitionSchema>;
+export type ExpansionMapDefinition = z.infer<typeof ExpansionMapDefinitionSchema>;
+export type ExpansionZoneDefinition = z.infer<typeof ExpansionZoneDefinitionSchema>;
+export type ContentExpansionRegistry = z.infer<typeof ContentExpansionRegistrySchema>;
 export type GameDataCatalog = z.infer<typeof GameDataCatalogSchema>;

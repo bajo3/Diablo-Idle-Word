@@ -1396,7 +1396,7 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
                 combatAuthority.advance(selection.characterId, nowMs, activeInstances),
               );
               if (gameplayEvent.type === 'COMBAT_INTENT') {
-                await progression?.assertAbilityUsable(
+                const progressionSnapshot = await progression?.assertAbilityUsable(
                   principal.userId,
                   selection.characterId,
                   gameplayEvent.payload.abilityId,
@@ -1407,6 +1407,9 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
                     characterId: selection.characterId,
                     operationId: gameplayEvent.requestId,
                     abilityId: gameplayEvent.payload.abilityId,
+                    ...(progressionSnapshot === undefined
+                      ? {}
+                      : { classId: progressionSnapshot.class }),
                     ...(gameplayEvent.payload.targetId === undefined
                       ? {}
                       : { targetId: gameplayEvent.payload.targetId }),

@@ -104,6 +104,16 @@ describe('validateClassRegistry', () => {
     expect(issues.some((issue) => issue.message.includes('Class mismatch'))).toBe(true);
   });
 
+  it('flags a node that references an unknown effect', () => {
+    const registry = baseRegistry();
+    const issues = validateClassRegistry({
+      ...registry,
+      nodes: [{ ...registry.nodes[0]!, effectIds: ['effect.ghost'] }, registry.nodes[1]!],
+      effects: [],
+    });
+    expect(issues.some((issue) => issue.message.includes('unknown effect'))).toBe(true);
+  });
+
   it('flags a node with a dangling prerequisite', () => {
     const registry = baseRegistry();
     const issues = validateClassRegistry({

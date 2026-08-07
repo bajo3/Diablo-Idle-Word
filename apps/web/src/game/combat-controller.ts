@@ -11,6 +11,7 @@ import {
   targetWithinRadius,
   tryActivateAbility,
   type CombatVector,
+  type CharacterClassId,
   type EnemyAbilityTarget,
   type GuardianAbilityKey,
   type GuardianCombatState,
@@ -60,10 +61,14 @@ export type DummyTarget = Readonly<{
 }>;
 
 const abilityKeys = ['slash', 'powerStrike', 'whirlwind', 'ironSkin'] as const;
-const combatData = GAME_DATA.guardianCombat;
-function tuningFor(abilityId: string): GuardianCombatTuning['abilities']['slash'] {
+type CombatCatalog = typeof GAME_DATA.guardianCombat | typeof GAME_DATA.barbarianCombat;
+
+function tuningFor(
+  combatData: CombatCatalog,
+  abilityId: string,
+): GuardianCombatTuning['abilities']['slash'] {
   const ability = combatData.abilities.find(({ id }) => id === abilityId);
-  if (ability === undefined) throw new Error(`Missing Guardian combat ability: ${abilityId}`);
+  if (ability === undefined) throw new Error(`Missing combat ability: ${abilityId}`);
   return {
     id: ability.id,
     furyCost: ability.furyCost,
@@ -87,32 +92,70 @@ function tuningFor(abilityId: string): GuardianCombatTuning['abilities']['slash'
     ...(ability.furyOnHit === undefined ? {} : { furyOnHit: ability.furyOnHit }),
   };
 }
-export const guardianCombatTuning: GuardianCombatTuning = Object.freeze({
-  formulaVersion: combatData.combatFormulaVersion,
-  level: combatData.level,
-  strength: combatData.attributes.strength,
-  dexterity: combatData.attributes.dexterity,
-  vitality: combatData.attributes.vitality,
-  weaponDamage: combatData.weaponDamage,
-  maxFury: combatData.maxFury,
-  criticalBaseChance: combatData.criticalBaseChance,
-  criticalPerDexterity: combatData.criticalPerDexterity,
-  criticalCap: combatData.criticalCap,
-  criticalMultiplier: combatData.criticalMultiplier,
-  armorDenominatorBase: combatData.armorDenominatorBase,
-  armorDenominatorPerLevel: combatData.armorDenominatorPerLevel,
-  armorReductionCap: combatData.armorReductionCap,
-  furyOnDamageTaken: combatData.furyOnDamageTaken,
-  furyDecayDelayMs: combatData.furyDecayDelayMs,
-  furyDecayPerSecond: combatData.furyDecayPerSecond,
-  battleThirst: combatData.battleThirst,
-  abilities: {
-    slash: tuningFor('ability.guardian.slash'),
-    powerStrike: tuningFor('ability.guardian.power_strike'),
-    whirlwind: tuningFor('ability.guardian.whirlwind'),
-    ironSkin: tuningFor('ability.guardian.iron_skin'),
-  },
+
+function buildCombatTuning(
+  combatData: CombatCatalog,
+  abilityIds: Readonly<Record<(typeof abilityKeys)[number], string>>,
+): GuardianCombatTuning {
+  return Object.freeze({
+    formulaVersion: combatData.combatFormulaVersion,
+    level: combatData.level,
+    strength: combatData.attributes.strength,
+    dexterity: combatData.attributes.dexterity,
+    vitality: combatData.attributes.vitality,
+    weaponDamage: combatData.weaponDamage,
+    maxFury: combatData.maxFury,
+    criticalBaseChance: combatData.criticalBaseChance,
+    criticalPerDexterity: combatData.criticalPerDexterity,
+    criticalCap: combatData.criticalCap,
+    criticalMultiplier: combatData.criticalMultiplier,
+    armorDenominatorBase: combatData.armorDenominatorBase,
+    armorDenominatorPerLevel: combatData.armorDenominatorPerLevel,
+    armorReductionCap: combatData.armorReductionCap,
+    furyOnDamageTaken: combatData.furyOnDamageTaken,
+    furyDecayDelayMs: combatData.furyDecayDelayMs,
+    furyDecayPerSecond: combatData.furyDecayPerSecond,
+    battleThirst: combatData.battleThirst,
+    abilities: {
+      slash: tuningFor(combatData, abilityIds.slash),
+      powerStrike: tuningFor(combatData, abilityIds.powerStrike),
+      whirlwind: tuningFor(combatData, abilityIds.whirlwind),
+      ironSkin: tuningFor(combatData, abilityIds.ironSkin),
+    },
+  });
+}
+
+const GUARDIAN_ABILITY_IDS = Object.freeze({
+  slash: 'ability.guardian.slash',
+  powerStrike: 'ability.guardian.power_strike',
+  whirlwind: 'ability.guardian.whirlwind',
+  ironSkin: 'ability.guardian.iron_skin',
 });
+
+/** The local preview uses the same pure combat rules as the server, with class data selected by ID. */
+export const guardianCombatTuning: GuardianCombatTuning = buildCombatTuning(
+  GAME_DATA.guardianCombat,
+  GUARDIAN_ABILITY_IDS,
+);
+
+/**
+ * Barbarian only has three active nodes in the first vertical slice. `powerStrike` is the internal
+ * frontal-hit slot used by its Q ability; `whirlwind` aliases the basic cleave as a safe fallback
+ * for legacy callers because the Barbarian kit has no area-over-time move yet.
+ */
+export const barbarianCombatTuning: GuardianCombatTuning = buildCombatTuning(
+  GAME_DATA.barbarianCombat,
+  Object.freeze({
+    slash: 'ability.barbarian.cleave',
+    powerStrike: 'ability.barbarian.berserker_oath',
+    whirlwind: 'ability.barbarian.cleave',
+    ironSkin: 'ability.barbarian.rallying_hide',
+  }),
+);
+
+export function combatTuningForClass(characterClass: CharacterClassId): GuardianCombatTuning {
+  return characterClass === 'BARBARIAN' ? barbarianCombatTuning : guardianCombatTuning;
+}
 
 type PendingImpact = Readonly<{
   executionId: string;
@@ -141,7 +184,10 @@ export class LocalCombatController {
     private readonly clock: CombatClock,
     private readonly random: RandomSource,
     private readonly constrainKnockback: KnockbackConstrain = (_from, proposed) => proposed,
+    characterClass: CharacterClassId = 'GUARDIAN',
   ) {
+    this.tuning = combatTuningForClass(characterClass);
+    this.state = createGuardianCombatState(this.tuning);
     this.previousAt = clock.now();
   }
 
