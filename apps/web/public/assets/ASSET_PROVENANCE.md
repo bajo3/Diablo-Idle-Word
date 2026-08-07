@@ -80,8 +80,19 @@ antes de declarar este arte como definitivo.
 
 # Bárbara — preview provisional (2026-08-06)
 
-`characters/barbarian/previews/barbarian_preview.png` es un preview de una sola pose generado con
-Codex Image Generation y convertido a alpha desde chroma-key; está escalado a 184×184 con
-nearest-neighbor para revisión visual. No forma parte todavía del manifiesto ejecutable ni del
-runtime: faltan hojas consistentes `idle/walk/basic_attack/hit/death` en tres direcciones, pivote,
-animaciones y validación de procedencia antes de activarlo como personaje jugable.
+`characters/barbarian/previews/barbarian_preview.png` sigue siendo una referencia de una sola pose
+generada con Codex Image Generation y convertida a alpha desde chroma-key; está escalada a 184×184
+con nearest-neighbor. La primera pasada de hojas completas se documenta en la sección siguiente.
+
+# Clases generadas — primera pasada de sprites (2026-08-07)
+
+Se generaron atlas de contacto para `barbarian`, `assassin`, `druid`, `necromancer`, `paladin` y
+`sorceress` con el pipeline de imagen integrado: tres direcciones (`north`, `south`, `east`), cinco
+estados (`idle`, `walk`, `basic_attack`, `hit`, `death`), alpha limpiado por chroma key y exportación
+nearest-neighbor a frames de 92×92. Cada set tiene manifest propio, entrada en `asset-manifest.json`
+y procedencia `Codex image generation contact atlas`.
+
+Estado: generado y conectado al loader/runtime para estas clases; la primera pasada repite la pose de
+cada contacto dentro del frame count contractual para mantener compatibilidad. La sustitución futura
+por animaciones multi-frame authored debe conservar los mismos IDs, pivote `(0.5, 0.86)`, rutas y
+direcciones. No se derivan hitboxes desde el alpha.

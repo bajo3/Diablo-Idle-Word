@@ -1,6 +1,16 @@
 import type { CharacterClassId } from '@brecha/shared';
 
-import { hunter, type LayeredCharacter } from './pixellab-characters';
+import {
+  assassin,
+  barbarian,
+  druid,
+  hunter,
+  necromancer,
+  paladin,
+  sorceress,
+  type LayeredCharacter,
+  type PixelLabCharacter,
+} from './pixellab-characters';
 
 import type { Direction4, LocalCharacterState } from './domain';
 
@@ -100,4 +110,21 @@ export function layeredCharacterForClass(
   classId: CharacterClassId | undefined,
 ): LayeredCharacter | undefined {
   return classId === 'AMAZON' ? hunter : undefined;
+}
+
+/**
+ * Resolves merged generated art for classes that do not use the layered Amazon rig. Guardian stays
+ * on the shipped dark-knight asset in runtime; returning undefined here preserves that fallback.
+ */
+export function characterForClass(
+  classId: CharacterClassId | undefined,
+): PixelLabCharacter | undefined {
+  return {
+    ASSASSIN: assassin,
+    BARBARIAN: barbarian,
+    DRUID: druid,
+    NECROMANCER: necromancer,
+    PALADIN: paladin,
+    SORCERESS: sorceress,
+  }[classId as Exclude<CharacterClassId, 'GUARDIAN' | 'AMAZON'>];
 }

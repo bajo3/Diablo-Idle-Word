@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   arcadeDebugEnabled,
   arcadeDebugOptIn,
+  characterForClass,
   layeredCharacterForClass,
   layeredCharacterFromSearch,
   BASE_CAMERA_ZOOM,
@@ -107,5 +108,23 @@ describe('layeredCharacterForClass', () => {
     expect(layeredCharacterForClass('GUARDIAN')).toBeUndefined();
     expect(layeredCharacterForClass('BARBARIAN')).toBeUndefined();
     expect(layeredCharacterForClass(undefined)).toBeUndefined();
+  });
+});
+
+describe('characterForClass', () => {
+  it('resolves generated merged art for every non-layered playable class', () => {
+    for (const [classId, expectedId] of [
+      ['ASSASSIN', 'assassin'],
+      ['BARBARIAN', 'barbarian'],
+      ['DRUID', 'druid'],
+      ['NECROMANCER', 'necromancer'],
+      ['PALADIN', 'paladin'],
+      ['SORCERESS', 'sorceress'],
+    ] as const) {
+      expect(characterForClass(classId)?.id).toBe(expectedId);
+      expect(characterForClass(classId)?.frameWidth).toBe(92);
+    }
+    expect(characterForClass('AMAZON')).toBeUndefined();
+    expect(characterForClass('GUARDIAN')).toBeUndefined();
   });
 });

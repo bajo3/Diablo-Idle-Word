@@ -206,13 +206,17 @@ se reemplaza un save corrupto por defaults.
       de UI y `pnpm typecheck` pasan.
 - [x] 2026-08-06: M2 subpaso de runtime local completado: la simulación selecciona el tuning de
       Bárbara por clase y el HUD resuelve sus IDs a `Hendidura`, `Juramento berserker` y `Piel de
-      batalla`, con `RABIA` como recurso. Regresiones de combate/HUD y typecheck pasan.
+    batalla`, con `RABIA` como recurso. Regresiones de combate/HUD y typecheck pasan.
+- [x] 2026-08-07: M2 subpaso de arte integrado completado como primera pasada: Bárbara, Asesina,
+      Druida, Nigromante, Paladín y Hechicera tienen manifests y hojas merged de 92×92 en tres
+      direcciones y cinco estados; el loader asigna el sprite según la clase. Las poses de contacto
+      se repiten dentro del frame count contractual y quedan marcadas como reemplazables.
 - [x] 2026-08-06: M2 subpaso de concept art completado: se generó y se limpió un preview de pose
       de Bárbara en `apps/web/public/assets/characters/barbarian/previews/`; queda documentado como
       provisional y fuera del manifiesto ejecutable.
-- [ ] Siguiente acción: producir hojas consistentes de Bárbara (`idle/walk/basic_attack/hit/death`)
-      en tres direcciones y agregar VFX/audio con procedencia validada; el runtime local y la barra
-      de acción por clase ya están conectados.
+- [ ] Siguiente acción: reemplazar las repeticiones por animaciones multi-frame authored, agregar
+      VFX/audio de clase y validar el recorrido visual en navegador; después cerrar M2 y avanzar a
+      los vertical slices de las seis clases restantes.
 
 ## Pruebas
 

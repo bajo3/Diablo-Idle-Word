@@ -73,6 +73,7 @@ import {
   CAMERA_ZOOM,
   POTION,
   PROJECTILE_VISUAL_CHEST_LIFT_PX,
+  characterForClass,
   layeredCharacterForClass,
   layeredCharacterFromSearch,
 } from './presentation';
@@ -117,6 +118,7 @@ import {
 } from './environment';
 import {
   darkKnight,
+  generatedClassCharacters,
   hunter,
   layeredCharacterSheets,
   mapDirection,
@@ -269,11 +271,12 @@ class BootScene extends Phaser.Scene {
     // per-frame layers exist.
     for (const asset of localAssetManifest)
       this.load.spritesheet(asset.id, asset.path, { frameWidth: 64, frameHeight: 64 });
-    for (const sheet of pixelLabSheetsToLoad(darkKnight))
-      this.load.spritesheet(sheet.key, sheet.path, {
-        frameWidth: sheet.frameWidth,
-        frameHeight: sheet.frameHeight,
-      });
+    for (const character of [darkKnight, ...generatedClassCharacters])
+      for (const sheet of pixelLabSheetsToLoad(character))
+        this.load.spritesheet(sheet.key, sheet.path, {
+          frameWidth: sheet.frameWidth,
+          frameHeight: sheet.frameHeight,
+        });
     // Any enemy whose visual carries its own generated character gets its sheets loaded too —
     // driven by the catalog, so adding art to another enemy only touches enemy-visuals.ts.
     for (const character of enemyCharactersToLoad())
@@ -536,7 +539,7 @@ class TestScene extends Phaser.Scene {
   private armorVisual!: Phaser.GameObjects.Container;
   private weaponVisual!: Phaser.GameObjects.Container;
   private equipmentVisual: EquipmentVisualLoadout = EMPTY_EQUIPMENT_VISUAL;
-  private readonly character: PixelLabCharacter = darkKnight;
+  private readonly character: PixelLabCharacter;
   /**
    * Set when the played character ships pixel-aligned layers. While it is undefined the runtime
    * keeps the older behaviour for merged art: translucent, rarity-tinted vector overlays.
@@ -681,6 +684,7 @@ class TestScene extends Phaser.Scene {
   ) {
     super('test');
     this.characterClass = characterClass ?? 'GUARDIAN';
+    this.character = characterForClass(this.characterClass) ?? darkKnight;
     const search = typeof window === 'undefined' ? '' : window.location.search;
     this.stressEnabled = enemyStressEnabled(search, import.meta.env.MODE === 'development');
     this.enemyStressCount = this.stressEnabled

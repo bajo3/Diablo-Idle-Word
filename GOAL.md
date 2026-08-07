@@ -4113,3 +4113,12 @@ recurso se etiqueta `RABIA` para Bárbara. Se agregaron regresiones del selector
 Pendiente de M2: hojas animadas consistentes, manifest/runtime de arte, VFX/audio definitivos y
 validación visual. Después se continúa con las seis clases restantes según
 [`docs/plans/all-content-expansion.md`](docs/plans/all-content-expansion.md).
+
+## Registro de arte — primera pasada de sprites de clases (2026-08-07)
+
+Se generaron y registraron hojas merged de `barbarian`, `assassin`, `druid`, `necromancer`, `paladin`
+y `sorceress` con tres direcciones, cinco estados y frames de 92×92. `characterForClass` las conecta
+al runtime; Amazona mantiene su rig por capas y Guardián mantiene su asset legado. La primera pasada
+repite las poses de contacto dentro del frame count contractual para preservar la importación y el
+presupuesto; queda una pasada posterior de animación multi-frame authored antes de cerrar M2 como arte
+definitivo.

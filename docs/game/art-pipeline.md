@@ -92,6 +92,17 @@ Escala fraccionaria borrosa, pivotes que saltan, compresión con halos, frames f
 
 Importación, nearest-neighbor cuando aplique, acciones/direcciones, pivote, layering, hitbox debug, assets faltantes, memoria y sustitución de placeholder.
 
+## Primera pasada de clases generadas (2026-08-07)
+
+`barbarian`, `assassin`, `druid`, `necromancer`, `paladin` y `sorceress` ahora tienen hojas merged
+de 92×92, tres direcciones y cinco estados bajo `characters/<id>/full/`, con metadata y procedencia
+registradas. El loader las carga y `characterForClass` las asigna a la clase elegida; Amazona conserva
+su rig por capas y Guardián conserva `dark_knight`.
+
+La primera pasada usa una pose de contacto repetida dentro del conteo de frames contractual. Es una
+base visual integrada y reemplazable, no la animación multi-frame definitiva. La siguiente pasada debe
+reemplazar las repeticiones por poses authored manteniendo rutas, IDs, frame size, pivote y alpha.
+
 ## Skills relacionadas
 
 - [pixel-art-pipeline](../../.agents/skills/pixel-art-pipeline/SKILL.md)

@@ -87,6 +87,44 @@ export const ranger: PixelLabCharacter = Object.freeze({
 });
 
 /**
+ * Generated merged class art. The source atlas is intentionally kept separate from gameplay
+ * contracts: each export below mirrors its metadata manifest and can later be replaced by a
+ * hand-authored multi-frame set without changing the runtime loader.
+ */
+function generatedClassCharacter(id: string, displayName: string): PixelLabCharacter {
+  return Object.freeze({
+    id,
+    displayName,
+    frameWidth: 92,
+    frameHeight: 92,
+    origin: { x: 0.5, y: 0.86 },
+    animations: Object.freeze({
+      idle: { frameRate: 6, repeat: -1, sheets: sheets(id, 'idle', 4) },
+      walk: { frameRate: 10, repeat: -1, sheets: sheets(id, 'walk', 8) },
+      basic_attack: { frameRate: 12, repeat: 0, sheets: sheets(id, 'basic_attack', 7) },
+      hit: { frameRate: 10, repeat: 0, sheets: sheets(id, 'hit', 6) },
+      death: { frameRate: 8, repeat: 0, sheets: sheets(id, 'death', 7) },
+    }),
+  });
+}
+
+export const assassin: PixelLabCharacter = generatedClassCharacter('assassin', 'Asesina');
+export const barbarian: PixelLabCharacter = generatedClassCharacter('barbarian', 'Bárbara');
+export const druid: PixelLabCharacter = generatedClassCharacter('druid', 'Druida');
+export const necromancer: PixelLabCharacter = generatedClassCharacter('necromancer', 'Nigromante');
+export const paladin: PixelLabCharacter = generatedClassCharacter('paladin', 'Paladín');
+export const sorceress: PixelLabCharacter = generatedClassCharacter('sorceress', 'Hechicera');
+
+export const generatedClassCharacters: readonly PixelLabCharacter[] = Object.freeze([
+  assassin,
+  barbarian,
+  druid,
+  necromancer,
+  paladin,
+  sorceress,
+]);
+
+/**
  * The approved Bruto sprite (user-provided upload, 2026-08-04). Mirrors
  * `apps/web/public/assets/characters/root_brute/metadata/manifest.json`.
  * Only idle/walk/basic_attack are authored today; every frame uses the same approved reference

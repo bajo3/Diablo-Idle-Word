@@ -1,0 +1,159 @@
+{
+  "id": "sorceress",
+  "provenance": {
+    "source": "Codex image generation contact atlas",
+    "author": "La Brecha Oscura",
+    "license": "Generated draft; verify distribution terms",
+    "addedAt": "2026-08-07",
+    "status": "generated"
+  },
+  "displayName": "Hechicera",
+  "frameSize": {
+    "width": 92,
+    "height": 92
+  },
+  "generatedDirections": [
+    "north",
+    "south",
+    "east"
+  ],
+  "mirroredDirections": [
+    {
+      "direction": "left",
+      "mirrorsFrom": "east"
+    }
+  ],
+  "animations": {
+    "idle": {
+      "id": "sorceress_idle",
+      "state": "idle",
+      "frameRate": 6,
+      "repeat": -1,
+      "frames": {
+        "north": {
+          "sheetPath": "characters/sorceress/full/sorceress_idle_north.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 4
+        },
+        "south": {
+          "sheetPath": "characters/sorceress/full/sorceress_idle_south.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 4
+        },
+        "east": {
+          "sheetPath": "characters/sorceress/full/sorceress_idle_east.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 4
+        }
+      }
+    },
+    "walk": {
+      "id": "sorceress_walk",
+      "state": "walk",
+      "frameRate": 10,
+      "repeat": -1,
+      "frames": {
+        "north": {
+          "sheetPath": "characters/sorceress/full/sorceress_walk_north.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 8
+        },
+        "south": {
+          "sheetPath": "characters/sorceress/full/sorceress_walk_south.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 8
+        },
+        "east": {
+          "sheetPath": "characters/sorceress/full/sorceress_walk_east.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 8
+        }
+      }
+    },
+    "basic_attack": {
+      "id": "sorceress_basic_attack",
+      "state": "basic_attack",
+      "frameRate": 12,
+      "repeat": 0,
+      "frames": {
+        "north": {
+          "sheetPath": "characters/sorceress/full/sorceress_basic_attack_north.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 7
+        },
+        "south": {
+          "sheetPath": "characters/sorceress/full/sorceress_basic_attack_south.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 7
+        },
+        "east": {
+          "sheetPath": "characters/sorceress/full/sorceress_basic_attack_east.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 7
+        }
+      }
+    },
+    "hit": {
+      "id": "sorceress_hit",
+      "state": "hit",
+      "frameRate": 10,
+      "repeat": 0,
+      "frames": {
+        "north": {
+          "sheetPath": "characters/sorceress/full/sorceress_hit_north.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 6
+        },
+        "south": {
+          "sheetPath": "characters/sorceress/full/sorceress_hit_south.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 6
+        },
+        "east": {
+          "sheetPath": "characters/sorceress/full/sorceress_hit_east.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 6
+        }
+      }
+    },
+    "death": {
+      "id": "sorceress_death",
+      "state": "death",
+      "frameRate": 8,
+      "repeat": 0,
+      "frames": {
+        "north": {
+          "sheetPath": "characters/sorceress/full/sorceress_death_north.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 7
+        },
+        "south": {
+          "sheetPath": "characters/sorceress/full/sorceress_death_south.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 7
+        },
+        "east": {
+          "sheetPath": "characters/sorceress/full/sorceress_death_east.png",
+          "frameWidth": 92,
+          "frameHeight": 92,
+          "frameCount": 7
+        }
+      }
+    }
+  },
+  "notes": "Contact-atlas poses are repeated to preserve the runtime sheet contract; replace with authored multi-frame animation without changing IDs."
+}
