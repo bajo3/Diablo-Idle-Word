@@ -10,6 +10,27 @@ import { gameApi } from '../api';
 afterEach(cleanup);
 
 describe('GameIsland lifecycle', () => {
+  it('passes the persisted class to the runtime instead of silently using the Guardian default', async () => {
+    const runtime = { pause: vi.fn(), resume: vi.fn(), destroy: vi.fn(), setConnection: vi.fn() };
+    const mountGameRuntime = vi.fn(() => runtime);
+    const loadRuntime: RuntimeLoader = async () => ({ mountGameRuntime });
+    render(
+      <GameIsland
+        characterClass="SORCERESS"
+        characterId="character:sorceress"
+        connection="online"
+        loadRuntime={loadRuntime}
+        onCheckpoint={async () => undefined}
+      />,
+    );
+    await waitFor(() => expect(mountGameRuntime).toHaveBeenCalledTimes(1));
+    expect(mountGameRuntime).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.any(Function),
+      'SORCERESS',
+    );
+  });
+
   it('pauses only for visibility, resumes on return, and removes the listener on unmount', async () => {
     const runtime = { pause: vi.fn(), resume: vi.fn(), destroy: vi.fn(), setConnection: vi.fn() };
     const mountGameRuntime = vi.fn(() => runtime);

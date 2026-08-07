@@ -158,7 +158,11 @@ export function App() {
     if (session.kind !== 'authenticated') return;
     await runAction('guardian:create', async () => {
       try {
-        await gameApi.createGuardian(guardianName, guardianClass);
+        const created = await gameApi.createGuardian(guardianName, guardianClass);
+        // A newly created character is the one the player asked to enter with. Selecting it here
+        // prevents an older Guardian from remaining active and making every new class look like
+        // darkKnight until the user performs a second, easy-to-miss action.
+        await gameApi.selectCharacter(created.character.id);
         const characters = await gameApi.characters();
         markSuccess();
         setMessage(undefined);

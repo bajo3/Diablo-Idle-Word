@@ -91,8 +91,7 @@ export function GameIsland({
   localProgression = false,
 }: {
   characterId: string;
-  /** Picks the rig art (Amazona -> hunter, everything else the shipped Guardian). Undefined for
-   * previews that have no persisted character, which keeps the Guardian. */
+  /** Picks the persisted class visual. Undefined for anonymous previews, which keeps Guardian. */
   characterClass?: CharacterClassId;
   connection: RuntimeConnection;
   onCheckpoint: (intent: {
@@ -207,7 +206,7 @@ export function GameIsland({
       runtime.current = undefined;
       setRuntimeReady(false);
     };
-  }, [loadRuntime]);
+  }, [characterClass, characterId, loadRuntime]);
 
   useEffect(() => {
     const mounted = runtime.current;

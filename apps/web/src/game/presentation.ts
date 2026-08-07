@@ -3,6 +3,7 @@ import type { CharacterClassId } from '@brecha/shared';
 import {
   assassin,
   barbarian,
+  darkKnight,
   druid,
   hunter,
   necromancer,
@@ -127,4 +128,27 @@ export function characterForClass(
     PALADIN: paladin,
     SORCERESS: sorceress,
   }[classId as Exclude<CharacterClassId, 'GUARDIAN' | 'AMAZON'>];
+}
+
+export type ResolvedCharacterVisual = Readonly<{
+  /** The sprite used as the player's base body in Phaser. */
+  character: PixelLabCharacter;
+  /** Present when the class uses frame-synchronised body/armor/weapon layers. */
+  layeredCharacter: LayeredCharacter | undefined;
+}>;
+
+/**
+ * Resolves the complete player visual in one place so a class cannot silently fall back to the
+ * Guardian asset. Layered rigs use their body as the base sprite; merged classes use their own
+ * generated sheet; only the legacy Guardian (or an unknown/missing class) uses darkKnight.
+ */
+export function resolveCharacterVisual(
+  classId: CharacterClassId | undefined,
+  search = '',
+  developmentMode = false,
+): ResolvedCharacterVisual {
+  const layeredCharacter =
+    layeredCharacterForClass(classId) ?? layeredCharacterFromSearch(search, developmentMode);
+  if (layeredCharacter !== undefined) return { character: layeredCharacter.body, layeredCharacter };
+  return { character: characterForClass(classId) ?? darkKnight, layeredCharacter: undefined };
 }

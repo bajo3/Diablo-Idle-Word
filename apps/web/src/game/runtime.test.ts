@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CharacterClassId } from '@brecha/shared';
 
 import {
   arcadeDebugEnabled,
@@ -12,6 +13,7 @@ import {
   CAMERA_DISTANCE_FACTOR,
   CAMERA_ZOOM,
   layerAnimationKey,
+  resolveCharacterVisual,
 } from './presentation';
 import { clampWorldPosition, constrainDummyKnockback } from './runtime-movement';
 
@@ -126,5 +128,35 @@ describe('characterForClass', () => {
     }
     expect(characterForClass('AMAZON')).toBeUndefined();
     expect(characterForClass('GUARDIAN')).toBeUndefined();
+  });
+});
+
+describe('resolveCharacterVisual', () => {
+  it('uses the selected class art and only keeps darkKnight for the legacy Guardian', () => {
+    const expected: Readonly<Record<string, string>> = {
+      GUARDIAN: 'dark_knight',
+      AMAZON: 'hunter_body',
+      ASSASSIN: 'assassin',
+      BARBARIAN: 'barbarian',
+      DRUID: 'druid',
+      NECROMANCER: 'necromancer',
+      PALADIN: 'paladin',
+      SORCERESS: 'sorceress',
+    };
+    for (const [classId, characterId] of Object.entries(expected)) {
+      const visual = resolveCharacterVisual(classId as CharacterClassId);
+      expect(visual.character.id).toBe(characterId);
+    }
+    expect(resolveCharacterVisual('AMAZON').layeredCharacter?.id).toBe('hunter');
+    expect(resolveCharacterVisual('GUARDIAN').layeredCharacter).toBeUndefined();
+  });
+
+  it('keeps the development hunter override layered without changing production fallback rules', () => {
+    expect(resolveCharacterVisual(undefined, '?character=hunter', true).character.id).toBe(
+      'hunter_body',
+    );
+    expect(resolveCharacterVisual(undefined, '?character=hunter', false).character.id).toBe(
+      'dark_knight',
+    );
   });
 });

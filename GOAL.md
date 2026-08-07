@@ -4122,3 +4122,23 @@ al runtime; Amazona mantiene su rig por capas y Guardián mantiene su asset lega
 repite las poses de contacto dentro del frame count contractual para preservar la importación y el
 presupuesto; queda una pasada posterior de animación multi-frame authored antes de cerrar M2 como arte
 definitivo.
+
+## Registro de correccion - seleccion visual de clase (2026-08-07)
+
+Se corrigieron dos causas de que un personaje nuevo apareciera siempre como `darkKnight`: crear un
+personaje ahora selecciona en el servidor ese ID antes de refrescar el roster, y `GameIsland` vuelve
+a montar el runtime cuando cambia el personaje o su clase. La resolucion visual quedo centralizada:
+las clases merged usan su atlas propio, Amazona usa `hunter_body` como base del rig por capas y solo
+el legado `GUARDIAN` (o un preview sin clase) usa `dark_knight`. El canvas publica la clase/asset
+resueltos en `data-character-class`, `data-character-visual` y `data-character-layered` para smoke
+visual sin alterar autoridad de combate.
+
+Verificacion de esta sesion: pruebas enfocadas, suite completa, typecheck, lint y build.
+
+La verificacion posterior en navegador encontro que `5173` y `3001` estaban ocupados por otro
+proyecto local (`JD-Auto`), por lo que la pestaña visible conservaba una instancia vieja del juego.
+La Brecha Oscura se levanto aislada en web `5176` y API `3002`; la sesion real confirmo que la cuenta
+abierta solo contiene un personaje persistido como `GUARDIAN`, para el cual `dark_knight` es el asset
+esperado. Las integraciones de autenticacion/progresion confirman que crear `BARBARIAN` conserva ese
+ID en PostgreSQL. Para comprobar otra clase en el flujo real se debe crear el personaje dentro de la
+instancia aislada; seleccionar una opcion del formulario no cambia la clase del Guardian existente.

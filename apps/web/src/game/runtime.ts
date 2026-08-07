@@ -73,9 +73,7 @@ import {
   CAMERA_ZOOM,
   POTION,
   PROJECTILE_VISUAL_CHEST_LIFT_PX,
-  characterForClass,
-  layeredCharacterForClass,
-  layeredCharacterFromSearch,
+  resolveCharacterVisual,
 } from './presentation';
 import {
   advanceEnemy,
@@ -684,19 +682,19 @@ class TestScene extends Phaser.Scene {
   ) {
     super('test');
     this.characterClass = characterClass ?? 'GUARDIAN';
-    this.character = characterForClass(this.characterClass) ?? darkKnight;
     const search = typeof window === 'undefined' ? '' : window.location.search;
+    const visual = resolveCharacterVisual(
+      this.characterClass,
+      search,
+      import.meta.env.MODE === 'development',
+    );
+    this.character = visual.character;
+    this.layeredCharacter = visual.layeredCharacter;
     this.stressEnabled = enemyStressEnabled(search, import.meta.env.MODE === 'development');
     this.enemyStressCount = this.stressEnabled
       ? parseEnemyStressCount(search)
       : DEFAULT_ENEMY_STRESS_COUNT;
     this.forestWaveSeed = seedFromString(`${this.runSeed}:forest-waves`);
-    // The character's own class picks its rig art (Amazona -> hunter, every other class still the
-    // shipped Guardian). `?character=` remains as a development-only manual override for trying rig
-    // art that has no class wired to it yet.
-    this.layeredCharacter =
-      layeredCharacterForClass(this.characterClass) ??
-      layeredCharacterFromSearch(search, import.meta.env.MODE === 'development');
   }
   public create(): void {
     this.forestProgress = createForestProgressState(GAME_DATA.endlessForest);
@@ -812,6 +810,9 @@ class TestScene extends Phaser.Scene {
       .setZoom(CAMERA_ZOOM);
     addVignette(this, this.cameras.main.width, this.cameras.main.height, CAMERA_ZOOM);
     this.feedback = new FeedbackPool(this);
+    this.game.canvas.dataset.characterClass = this.characterClass;
+    this.game.canvas.dataset.characterVisual = this.character.id;
+    this.game.canvas.dataset.characterLayered = this.layeredCharacter?.id ?? '';
     this.game.canvas.addEventListener('contextmenu', this.suppressContextMenu);
     this.input.on('pointermove', this.onPointerMove, this);
     this.input.on('pointerdown', this.onPointerDown, this);

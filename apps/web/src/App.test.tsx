@@ -143,6 +143,34 @@ describe('Paso 5 session lifecycle', () => {
     expect(screen.getByText('PUEBLO · Muro')).toBeTruthy();
   });
 
+  it('selects a newly created class so entering the world cannot reuse an older Guardian', async () => {
+    authenticatedSession();
+    const created = {
+      id: 'character:barbara',
+      name: 'Furia',
+      class: 'BARBARIAN',
+      level: 1,
+      availability: 'AVAILABLE',
+      selected: false,
+    };
+    api.createGuardian.mockResolvedValue({ character: created });
+    api.selectCharacter.mockResolvedValue(undefined);
+    api.characters.mockResolvedValueOnce({ characters: [muro] }).mockResolvedValueOnce({
+      characters: [
+        { ...muro, selected: false },
+        { ...created, selected: true },
+      ],
+    });
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Ayla' });
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Furia' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Crear Guardián' }).closest('form')!);
+
+    await waitFor(() => expect(api.selectCharacter).toHaveBeenCalledWith('character:barbara'));
+    expect(api.characters).toHaveBeenCalledTimes(2);
+  });
+
   it('explains when registration email already exists', async () => {
     api.register.mockRejectedValue(new ApiError('http', 409, 'conflict'));
     render(<App />);
