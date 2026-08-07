@@ -99,9 +99,17 @@ de 92×92, tres direcciones y cinco estados bajo `characters/<id>/full/`, con me
 registradas. El loader las carga y `characterForClass` las asigna a la clase elegida; Amazona conserva
 su rig por capas y Guardián conserva `dark_knight`.
 
-La primera pasada usa una pose de contacto repetida dentro del conteo de frames contractual. Es una
-base visual integrada y reemplazable, no la animación multi-frame definitiva. La siguiente pasada debe
-reemplazar las repeticiones por poses authored manteniendo rutas, IDs, frame size, pivote y alpha.
+La primera pasada partía de una pose de contacto repetida dentro del conteo de frames contractual.
+Ahora `scripts/aseprite-gen/synthesize-class-animation-variants.py` genera una pasada puente
+determinista: bob/lean de 1–5 px para que caminar, atacar, recibir daño y morir tengan lectura
+visual en juego. Mantiene rutas, IDs, frame size, pivote, alpha y nearest-neighbor; no pretende ser
+la animación multi-frame authored definitiva. Cuando llegue arte final, se reemplazan las celdas sin
+cambiar esos contratos y se vuelve a ejecutar `pnpm validate:assets`.
+
+La misma pasada dejó de teñir tres enemigos sobre la silueta del Guardián: `corrupted_minion`,
+`dark_shaman` y `unstable_beast` usan temporalmente las siluetas generadas de Asesina, Nigromante y
+Druida respectivamente. Es variedad de lectura para la demo, no arte enemigo final; sus IDs,
+estadísticas, IA y hitboxes siguen siendo los del catálogo.
 
 ## Skills relacionadas
 

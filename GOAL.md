@@ -4142,3 +4142,30 @@ abierta solo contiene un personaje persistido como `GUARDIAN`, para el cual `dar
 esperado. Las integraciones de autenticacion/progresion confirman que crear `BARBARIAN` conserva ese
 ID en PostgreSQL. Para comprobar otra clase en el flujo real se debe crear el personaje dentro de la
 instancia aislada; seleccionar una opcion del formulario no cambia la clase del Guardian existente.
+
+## Registro de correccion - orientacion, audio y variedad visual (2026-08-07)
+
+La orientacion del Guardián queda determinada por el movimiento cardinal (W/S/A/D) y por el
+mapping estable `north`/`south`/`east` + espejo de `pixellab-characters.ts`; se agregaron regresiones
+para las cuatro direcciones para evitar que el cursor o una facing anterior inviertan el paso. Las
+hojas existentes de `dark_knight` mantienen norte como espalda y sur como frente, por lo que no se
+invirtieron assets a ciegas.
+
+El apagado del audio ya no depende solamente de `Phaser.Scenes.Events.SHUTDOWN`: el runtime libera
+el mezclador de Web Audio antes de `game.destroy(true)` y el cierre es idempotente. Esto detiene el
+intervalo de musica y cierra el `AudioContext` al volver al menu, incluso si Phaser no alcanza a
+emitir el evento de escena durante el cambio de ruta.
+
+Las hojas de las seis clases merged conservan sus contratos de 92x92, pero ahora pasan por
+`scripts/aseprite-gen/synthesize-class-animation-variants.py`: cada estado tiene variaciones
+nearest-neighbor de bob/lean para que caminar, atacar, recibir daño y morir no sean una pose congelada.
+Es una pasada puente de arte, reemplazable por frames authored sin cambiar IDs, rutas, pivotes ni
+hitboxes. Enemigos que antes eran solo un Guardian teñido (`corrupted_minion`, `dark_shaman` y
+`unstable_beast`) usan provisionalmente las siluetas de Asesina, Nigromante y Druida; Bruto y Arquero
+conservan sus hojas propias. La IA, balance, recompensas y autoridad no se modifican.
+
+Verificacion: pruebas enfocadas de audio, visuales de enemigos, atlas, movimiento y runtime (46
+tests) verdes;
+el script de assets se ejecuto sobre las 90 hojas merged y los manifiestos conservaron dimensiones y
+frame counts. Pendiente: reemplazar la pasada procedural por arte multi-pose definitivo y generar
+hojas enemigas dedicadas cuando se apruebe presupuesto visual.

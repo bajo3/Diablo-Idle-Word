@@ -155,5 +155,5 @@
       }
     }
   },
-  "notes": "Contact-atlas poses are repeated to preserve the runtime sheet contract; replace with authored multi-frame animation without changing IDs."
+  "notes": "Generated contact poses receive deterministic nearest-neighbour bob/lean variants for walk, attack, idle, hit and death. Replace with authored multi-pose animation without changing IDs, frame size, pivots or routes."
 }

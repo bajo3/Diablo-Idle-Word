@@ -209,12 +209,13 @@ se reemplaza un save corrupto por defaults.
     batalla`, con `RABIA` como recurso. Regresiones de combate/HUD y typecheck pasan.
 - [x] 2026-08-07: M2 subpaso de arte integrado completado como primera pasada: Bárbara, Asesina,
       Druida, Nigromante, Paladín y Hechicera tienen manifests y hojas merged de 92×92 en tres
-      direcciones y cinco estados; el loader asigna el sprite según la clase. Las poses de contacto
-      se repiten dentro del frame count contractual y quedan marcadas como reemplazables.
+      direcciones y cinco estados; el loader asigna el sprite según la clase. El script
+      `scripts/aseprite-gen/synthesize-class-animation-variants.py` agrega una pasada puente de
+      bob/lean nearest-neighbor sobre los contactos, manteniendo rutas, pivotes y frame counts.
 - [x] 2026-08-06: M2 subpaso de concept art completado: se generó y se limpió un preview de pose
       de Bárbara en `apps/web/public/assets/characters/barbarian/previews/`; queda documentado como
       provisional y fuera del manifiesto ejecutable.
-- [ ] Siguiente acción: reemplazar las repeticiones por animaciones multi-frame authored, agregar
+- [ ] Siguiente acción: reemplazar la pasada puente por animaciones multi-frame authored, agregar
       VFX/audio de clase y validar el recorrido visual en navegador; después cerrar M2 y avanzar a
       los vertical slices de las seis clases restantes.
 

@@ -37,4 +37,23 @@ describe('game audio contract', () => {
     });
     mixer.destroy();
   });
+
+  it('makes teardown idempotent so route changes cannot leak a music loop', () => {
+    const mixer = new GameAudioMixer({
+      sound: true,
+      music: true,
+      reducedMotion: false,
+      masterVolume: 1,
+      musicVolume: 1,
+      ambienceVolume: 1,
+      sfxVolume: 1,
+      uiVolume: 1,
+    });
+    mixer.destroy();
+    mixer.destroy();
+    expect(mixer.diagnostics()).toMatchObject({
+      activeTones: 0,
+      contextState: 'uninitialized',
+    });
+  });
 });

@@ -92,7 +92,9 @@ estados (`idle`, `walk`, `basic_attack`, `hit`, `death`), alpha limpiado por chr
 nearest-neighbor a frames de 92×92. Cada set tiene manifest propio, entrada en `asset-manifest.json`
 y procedencia `Codex image generation contact atlas`.
 
-Estado: generado y conectado al loader/runtime para estas clases; la primera pasada repite la pose de
-cada contacto dentro del frame count contractual para mantener compatibilidad. La sustitución futura
-por animaciones multi-frame authored debe conservar los mismos IDs, pivote `(0.5, 0.86)`, rutas y
-direcciones. No se derivan hitboxes desde el alpha.
+Estado: generado y conectado al loader/runtime para estas clases. `scripts/aseprite-gen/
+synthesize-class-animation-variants.py` aplica una pasada puente determinista de bob/lean
+nearest-neighbor sobre los contactos para que walk, basic_attack, hit, death e idle tengan lectura
+visual sin cambiar frame count. Sigue siendo arte provisional: la sustitución futura por animaciones
+multi-frame authored debe conservar los mismos IDs, pivote `(0.5, 0.86)`, rutas y direcciones. No se
+derivan hitboxes desde el alpha.

@@ -17,6 +17,13 @@ describe('Paso 6 local game contracts', () => {
     expect(motionFromInput(0, 0, 'left')).toEqual({ x: 0, y: 0, direction: 'left', state: 'idle' });
   });
 
+  it('keeps the sprite facing the direction of actual WASD motion', () => {
+    expect(motionFromInput(0, -1, 'down').direction).toBe('up');
+    expect(motionFromInput(0, 1, 'up').direction).toBe('down');
+    expect(motionFromInput(-1, 0, 'right').direction).toBe('left');
+    expect(motionFromInput(1, 0, 'left').direction).toBe('right');
+  });
+
   it('never interrupts dead, in either direction', () => {
     expect(resolveCharacterState('dead', 'idle')).toBe('dead');
     expect(resolveCharacterState('dead', 'moving')).toBe('dead');

@@ -669,6 +669,12 @@ class TestScene extends Phaser.Scene {
     sfxVolume: 0.7,
     uiVolume: 0.65,
   });
+  /**
+   * Phaser normally emits SHUTDOWN when a scene is stopped, but a route change can destroy the
+   * parent game before that event is delivered. Keep audio teardown explicit and idempotent so a
+   * music interval or Web Audio context can never survive after returning to the menu.
+   */
+  private audioReleased = false;
   private reducedMotion = false;
   private showDamageNumbers = true;
   /** Vision pivot (GOAL.md §0.1): combat is semi-automatic by default, manual input is the
@@ -926,7 +932,15 @@ class TestScene extends Phaser.Scene {
     this.showDamageNumbers = enabled;
   }
   public setAudioSettings(settings: GameSettings): void {
+    if (this.audioReleased) return;
     this.audio.setSettings(settings);
+  }
+
+  /** Called by the React-owned runtime before Phaser is destroyed. */
+  public stopAudio(): void {
+    if (this.audioReleased) return;
+    this.audioReleased = true;
+    this.audio.destroy();
   }
   public setReducedMotion(enabled: boolean): void {
     this.reducedMotion = enabled;
@@ -2155,7 +2169,7 @@ class TestScene extends Phaser.Scene {
     this.input.keyboard?.off('keydown-ESC', this.togglePause, this);
     this.game.canvas.removeEventListener('contextmenu', this.suppressContextMenu);
     this.feedback.destroy();
-    this.audio.destroy();
+    this.stopAudio();
     this.interactionFeedbackTween?.stop();
     this.interactionPrompt?.destroy();
     this.interactionFeedbackText?.destroy();
@@ -2319,6 +2333,8 @@ export function mountGameRuntime(
     destroy: () => {
       if (!destroyed) {
         destroyed = true;
+        // Do this before Phaser tears down the scene graph; SHUTDOWN is a best-effort fallback.
+        scene.stopAudio();
         game.destroy(true);
         runtimes.delete(host);
       }

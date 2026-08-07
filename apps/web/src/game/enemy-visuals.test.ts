@@ -20,16 +20,13 @@ describe('enemy visuals', () => {
     }
   });
 
-  it('gives generated art to the Bruto and Arquero, with safe tint fallbacks for the rest', () => {
+  it('gives every archetype a distinct generated silhouette or a safe tint fallback', () => {
     expect(ENEMY_VISUALS.root_brute.character?.id).toBe('root_brute');
     expect(ENEMY_VISUALS.possessed_archer.character?.id).toBe('ranger');
-    const withoutOwnArt: Array<[string, boolean]> = Object.entries(ENEMY_VISUALS)
-      .filter(([id]) => id !== 'root_brute' && id !== 'possessed_archer')
-      .map(([id, visual]) => [id, visual.character === undefined]);
-    expect(withoutOwnArt).toEqual([
-      ['corrupted_minion', true],
-      ['dark_shaman', true],
-      ['unstable_beast', true],
-    ]);
+    expect(ENEMY_VISUALS.corrupted_minion.character?.id).toBe('assassin');
+    expect(ENEMY_VISUALS.dark_shaman.character?.id).toBe('necromancer');
+    expect(ENEMY_VISUALS.unstable_beast.character?.id).toBe('druid');
+    const characterIds = Object.values(ENEMY_VISUALS).map((visual) => visual.character?.id);
+    expect(new Set(characterIds).size).toBe(characterIds.length);
   });
 });
