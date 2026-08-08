@@ -139,6 +139,89 @@ export function paintStoneObstacle(
   return body;
 }
 
+/** Ruined-cottage palette: weathered timber and mossy stone, with one corruption-lit window. */
+const HOUSE_PALETTE = Object.freeze({
+  wall: 0x2f2519,
+  wallDark: 0x1c160e,
+  wallLight: 0x3f3220,
+  roof: 0x191310,
+  roofLight: 0x241c15,
+  doorway: 0x0a0705,
+  windowGlow: 0x8a3ffc,
+});
+
+/**
+ * A small ruined cottage: mossy timber walls under a peaked roof, with a dark doorway and one
+ * corruption-lit window so it reads as part of the zone rather than a generic box. Only the wall
+ * footprint returned here is solid — the roof overhang is purely visual and deliberately wider than
+ * the collision rectangle, matching how a real roofline overhangs the walls beneath it.
+ */
+export function paintHouse(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): Phaser.GameObjects.Rectangle {
+  const roofOverhang = 10;
+  const roofHeight = height * 0.55;
+  const roofY = y - height / 2 - roofHeight / 2;
+  scene.add
+    .triangle(
+      x,
+      roofY,
+      -width / 2 - roofOverhang,
+      roofHeight / 2,
+      width / 2 + roofOverhang,
+      roofHeight / 2,
+      0,
+      -roofHeight / 2,
+      HOUSE_PALETTE.roof,
+    )
+    .setDepth(y - height / 2 - 0.2);
+  scene.add
+    .triangle(
+      x,
+      roofY + 2,
+      -width / 2 - roofOverhang + 4,
+      roofHeight / 2 - 3,
+      0,
+      -roofHeight / 2 + 4,
+      -4,
+      roofHeight / 2 - 3,
+      HOUSE_PALETTE.roofLight,
+    )
+    .setAlpha(0.5)
+    .setDepth(y - height / 2 - 0.1);
+  const body = scene.add.rectangle(x, y, width, height, HOUSE_PALETTE.wall).setDepth(y);
+  scene.add
+    .rectangle(x - width / 2 + 3, y, 5, height - 6, HOUSE_PALETTE.wallLight)
+    .setAlpha(0.6)
+    .setDepth(y + 0.1);
+  scene.add
+    .rectangle(x, y + height / 2 - 2, width, 4, HOUSE_PALETTE.wallDark)
+    .setAlpha(0.7)
+    .setDepth(y + 0.1);
+  const doorWidth = Math.min(16, width * 0.28);
+  scene.add
+    .rectangle(
+      x + width / 4,
+      y + height / 2 - doorWidth * 0.9,
+      doorWidth,
+      doorWidth * 1.8,
+      HOUSE_PALETTE.doorway,
+    )
+    .setDepth(y + 0.2);
+  scene.add
+    .rectangle(x - width / 4, y - height * 0.1, 8, 8, HOUSE_PALETTE.windowGlow, 0.55)
+    .setDepth(y + 0.2);
+  scene.add
+    .rectangle(x - width / 4, y - height * 0.1, 8, 8, HOUSE_PALETTE.windowGlow, 0)
+    .setStrokeStyle(1, HOUSE_PALETTE.windowGlow, 0.9)
+    .setDepth(y + 0.3);
+  return body;
+}
+
 /**
  * Deterministic positions in the border band of the world — the ring between the world edge and
  * an inner rectangle. Trees go here rather than in the arena so the forest frames the fight

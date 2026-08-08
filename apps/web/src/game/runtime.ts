@@ -63,7 +63,7 @@ import {
   type Direction4,
   type LocalCharacterState,
 } from './domain';
-import { ENEMY_VISUALS, type EnemyVisualId } from './enemy-visuals';
+import { ENEMY_VISUALS, skeletonTierForLevel, type EnemyVisualId } from './enemy-visuals';
 import {
   arcadeDebugEnabled,
   arcadeDebugOptIn,
@@ -112,6 +112,7 @@ import {
   addVignette,
   borderBandPoints,
   paintCorruptedForestGround,
+  paintHouse,
   plantCorruptedTree,
 } from './environment';
 import {
@@ -133,7 +134,9 @@ import {
   equipmentRarityColor,
   isTwoHandedWeapon,
   validateEquipmentVisualCompatibility,
+  weaponSilhouetteForDefinition,
   type EquipmentVisualLoadout,
+  type WeaponSilhouette,
 } from './equipment-visual';
 import { GameAudioMixer } from './audio';
 import type { GameSettings } from '../settings';
@@ -167,6 +170,15 @@ const ENEMY_SPAWN_CONFIG: EnemySpawnDirectorConfig<EnemyVisualId> = Object.freez
   ] as const),
   idPrefix: 'enemy',
 });
+/**
+ * Wave composition, level-aware: the five base archetypes plus whichever Skeleton tier fits the
+ * player's current forest level (Paso 10). Appended rather than swapped in, so the existing five
+ * archetypes stay guaranteed present at every level — the Skeleton line is new variety layered on
+ * top, not a replacement that could accidentally thin out the roster.
+ */
+function composeWaveArchetypes(level: number): readonly EnemyVisualId[] {
+  return [...ENEMY_SPAWN_CONFIG.composition, skeletonTierForLevel(level)];
+}
 const ENEMY_MIN_SEPARATION_PX = 58;
 /** Bounded visual capacities for the local preview and the opt-in 40-enemy stress mode. */
 const STRESS_METRICS_PUBLISH_MS = 500;
@@ -180,7 +192,23 @@ const ENEMY_KNOCKBACK_VISUAL_MS = 220;
  */
 const HAZARD = GAME_DATA.hazards[0]!;
 const HAZARD_POSITION = Object.freeze({ x: 640, y: 460 });
+/**
+ * Ruined cottages: solid map geometry (the Guardian collides with them; enemies still path through
+ * freely, matching how `CombatObstacle` currently only feeds the player's own knockback sweep).
+ * Positions sit clear of every enemy spawn point, the hazard and the player's own spawn so a fresh
+ * run never starts wedged against a wall.
+ */
+const HOUSE_OBSTACLES: readonly Readonly<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}>[] = Object.freeze([
+  { x: 760, y: 240, width: 64, height: 50 },
+  { x: 190, y: 560, width: 58, height: 46 },
+]);
 const EXPEDITION_BACKGROUND_KEY = 'env:corrupted-forest-background';
+const LEGENDARY_GLINT_TEXTURE_KEY = 'vfx:legendary-glint';
 
 export type RuntimeConnection = 'online' | 'offline' | 'degraded' | 'maintenance';
 export type RuntimeAbility = 'slash' | 'powerStrike' | 'whirlwind' | 'ironSkin';
@@ -709,7 +737,7 @@ class TestScene extends Phaser.Scene {
       this.forestProgress.level,
       this.forestWaveIndex,
       this.forestWaveSeed,
-      ENEMY_SPAWN_CONFIG.composition,
+      composeWaveArchetypes(this.forestProgress.level),
     );
     this.controller = new LocalCombatController(
       { now: () => this.combatNow() },
@@ -734,6 +762,9 @@ class TestScene extends Phaser.Scene {
       .setDepth(-99);
     for (const point of borderBandPoints(26, TEST_WORLD.width, TEST_WORLD.height, 90, scenery))
       plantCorruptedTree(this, point.x, point.y, scenery);
+    const houseBodies = HOUSE_OBSTACLES.map((house) =>
+      paintHouse(this, house.x, house.y, house.width, house.height),
+    );
     addAmbientSpores(this, TEST_WORLD.width, TEST_WORLD.height);
     createPixelLabAnimations(this, this.character);
     if (this.layeredCharacter !== undefined)
@@ -752,6 +783,12 @@ class TestScene extends Phaser.Scene {
       .setBodySize(26, 18)
       .setOffset(33, 61)
       .setDepth(this.player.y);
+    // Houses block the Guardian's own body; enemies still path through them freely for now (Paso
+    // 8's navigation owns enemy-vs-geometry collision, not this scene).
+    for (const houseBody of houseBodies) {
+      this.physics.add.existing(houseBody, true);
+      this.physics.add.collider(this.player, houseBody);
+    }
     const layered = this.layeredCharacter;
     if (layered !== undefined) {
       // Same origin, same animation keys, one depth step apart: the three sprites move as one.
@@ -1187,7 +1224,7 @@ class TestScene extends Phaser.Scene {
       level,
       this.forestWaveIndex,
       seed,
-      ENEMY_SPAWN_CONFIG.composition,
+      composeWaveArchetypes(level),
     );
     const composition = this.stressEnabled
       ? ENEMY_SPAWN_CONFIG.composition
@@ -1892,46 +1929,74 @@ class TestScene extends Phaser.Scene {
       const graphics = this.add.graphics();
       const color = equipmentRarityColor(item.rarity);
       graphics.fillStyle(color, 0.22).lineStyle(2, color, 0.9);
+      let center = { x: 0, y: -64 };
       if (item.slot === 'helmet') {
-        graphics.fillCircle(0, -64, 14);
-        graphics.strokeCircle(0, -64, 14);
+        center = { x: 0, y: -64 };
+        graphics.fillCircle(center.x, center.y, 14);
+        graphics.strokeCircle(center.x, center.y, 14);
         graphics.fillRect(-14, -63, 28, 6);
       } else if (item.slot === 'chest') {
+        center = { x: 0, y: -37 };
         graphics.fillRoundedRect(-18, -52, 36, 30, 7);
         graphics.strokeRoundedRect(-18, -52, 36, 30, 7);
         graphics.fillCircle(0, -38, 3);
       } else if (item.slot === 'gloves') {
+        center = { x: 0, y: -32 };
         graphics.fillCircle(-23, -32, 6);
         graphics.strokeCircle(-23, -32, 6);
         graphics.fillCircle(23, -32, 6);
         graphics.strokeCircle(23, -32, 6);
       } else if (item.slot === 'boots') {
+        center = { x: 0, y: -16 };
         graphics.fillRoundedRect(-17, -21, 11, 11, 3);
         graphics.strokeRoundedRect(-17, -21, 11, 11, 3);
         graphics.fillRoundedRect(6, -21, 11, 11, 3);
         graphics.strokeRoundedRect(6, -21, 11, 11, 3);
       }
       this.armorVisual.add(graphics);
+      // Same standing glint as a legendary weapon (below) — the whole loadout should read as
+      // special, not just whatever happens to be in the main hand.
+      if (item.rarity === 'legendary') this.armorVisual.add(this.spawnLegendaryGlint(center));
     }
     const weapon = this.equipmentVisual.weapon;
     if (weapon !== undefined) {
       const graphics = this.add.graphics();
       const color = equipmentRarityColor(weapon.rarity);
       const long = isTwoHandedWeapon(weapon.definitionId);
+      const hilt = { x: 24, y: -30 };
+      const tip = { x: long ? 60 : 52, y: long ? -66 : -57 };
       graphics.lineStyle(long ? 6 : 4, color, 0.95);
       graphics.beginPath();
-      graphics.moveTo(24, -30);
-      graphics.lineTo(long ? 60 : 52, long ? -66 : -57);
+      graphics.moveTo(hilt.x, hilt.y);
+      graphics.lineTo(tip.x, tip.y);
       graphics.strokePath();
-      graphics.fillStyle(color, 0.95).fillCircle(long ? 60 : 52, long ? -66 : -57, long ? 5 : 4);
+      // The shaft is shared by every weapon; only the head at the tip tells a sword from an axe.
+      drawWeaponHead(graphics, weaponSilhouetteForDefinition(weapon.definitionId), tip, color, long);
       graphics.lineStyle(3, 0x664735, 0.95);
       graphics.beginPath();
       graphics.moveTo(18, -24);
       graphics.lineTo(31, -37);
       graphics.strokePath();
       this.weaponVisual.add(graphics);
+      // Legendary gear earns a small pulsing glint at the weapon's tip — the only rarity tier that
+      // gets a standing animated flourish rather than just a brighter fill/stroke color.
+      if (weapon.rarity === 'legendary') this.weaponVisual.add(this.spawnLegendaryGlint(tip));
     }
     this.syncEquipmentVisuals();
+  }
+  /** A small pulsing sparkle, standing at `at` until the caller's container is torn down with it. */
+  private spawnLegendaryGlint(at: Readonly<{ x: number; y: number }>): Phaser.GameObjects.Image {
+    ensureLegendaryGlintTexture(this);
+    const glint = this.add.image(at.x, at.y, LEGENDARY_GLINT_TEXTURE_KEY).setBlendMode('ADD');
+    this.tweens.add({
+      targets: glint,
+      scale: { from: 0.6, to: 1.3 },
+      alpha: { from: 0.9, to: 0.15 },
+      duration: 900,
+      repeat: -1,
+      ease: 'Sine.easeOut',
+    });
+    return glint;
   }
   private publishEquipmentVisualDebug(): void {
     if (this.game?.canvas === undefined) return;
@@ -2225,6 +2290,73 @@ function directionVector(direction: Direction4): Readonly<{ x: number; y: number
     left: { x: -1, y: 0 },
     right: { x: 1, y: 0 },
   }[direction];
+}
+/**
+ * Draws the weapon head at `tip` for one of the four procedural silhouettes (Paso 12). The shaft
+ * itself is drawn by the caller and shared by all of them — only the head distinguishes a sword's
+ * pommel from an axe's wedge, so a Guardian holding a "Hacha del ocaso" no longer looks like it is
+ * holding the same generic blade as every other weapon.
+ */
+function drawWeaponHead(
+  graphics: Phaser.GameObjects.Graphics,
+  silhouette: WeaponSilhouette,
+  tip: Readonly<{ x: number; y: number }>,
+  color: number,
+  long: boolean,
+): void {
+  const size = long ? 6 : 5;
+  graphics.fillStyle(color, 0.95).lineStyle(2, color, 0.95);
+  if (silhouette === 'axe') {
+    graphics.beginPath();
+    graphics.moveTo(tip.x - size * 1.6, tip.y - size * 0.4);
+    graphics.lineTo(tip.x + size * 0.6, tip.y - size * 1.8);
+    graphics.lineTo(tip.x + size * 1.4, tip.y + size * 0.2);
+    graphics.lineTo(tip.x - size * 0.2, tip.y + size * 1.4);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.strokePath();
+    return;
+  }
+  if (silhouette === 'hammer') {
+    graphics.fillRect(tip.x - size * 1.3, tip.y - size, size * 2.6, size * 2);
+    graphics.strokeRect(tip.x - size * 1.3, tip.y - size, size * 2.6, size * 2);
+    return;
+  }
+  if (silhouette === 'polearm') {
+    graphics.beginPath();
+    graphics.moveTo(tip.x, tip.y - size * 2.2);
+    graphics.lineTo(tip.x + size * 0.8, tip.y);
+    graphics.lineTo(tip.x - size * 0.8, tip.y);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.strokePath();
+    return;
+  }
+  graphics.fillCircle(tip.x, tip.y, size);
+  graphics.strokeCircle(tip.x, tip.y, size);
+}
+/**
+ * Small four-pointed sparkle used for the legendary weapon glint (Paso 12). Generated once and
+ * cached like the environment module's own procedural textures — `scene.textures.exists` guards
+ * against re-painting it every time a legendary weapon is (re)rendered.
+ */
+function ensureLegendaryGlintTexture(scene: Phaser.Scene): void {
+  if (scene.textures.exists(LEGENDARY_GLINT_TEXTURE_KEY)) return;
+  const canvas = scene.add.graphics();
+  canvas.fillStyle(0xffffff, 1);
+  canvas.beginPath();
+  canvas.moveTo(8, 0);
+  canvas.lineTo(10, 6);
+  canvas.lineTo(16, 8);
+  canvas.lineTo(10, 10);
+  canvas.lineTo(8, 16);
+  canvas.lineTo(6, 10);
+  canvas.lineTo(0, 8);
+  canvas.lineTo(6, 6);
+  canvas.closePath();
+  canvas.fillPath();
+  canvas.generateTexture(LEGENDARY_GLINT_TEXTURE_KEY, 16, 16);
+  canvas.destroy();
 }
 /** One Phaser animation per (generated animation × generated direction) of a PixelLab character. */
 function createPixelLabAnimations(scene: Phaser.Scene, character: PixelLabCharacter): void {

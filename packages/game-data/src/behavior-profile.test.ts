@@ -13,13 +13,18 @@ describe('resolveEnemyMovementStyle', () => {
     expect(resolveEnemyMovementStyle(['fast_pursuit', 'telegraphed_explosion'])).toBe('close');
   });
 
-  it('resolves the five real catalog enemies to the expected style', () => {
+  it('resolves every real catalog enemy to the expected style', () => {
     const expected: Record<string, 'close' | 'keepDistance'> = {
       corrupted_minion: 'close',
       possessed_archer: 'close',
       dark_shaman: 'close',
       root_brute: 'close',
       unstable_beast: 'close',
+      skeleton_recruit: 'close',
+      skeleton_warrior: 'close',
+      bone_soldier: 'close',
+      bone_warlord: 'close',
+      skeleton_king: 'close',
     };
     for (const enemy of GAME_DATA.enemies)
       expect(resolveEnemyMovementStyle(enemy.behaviors)).toBe(expected[enemy.id]);
@@ -27,13 +32,20 @@ describe('resolveEnemyMovementStyle', () => {
 });
 
 describe('resolveEnemyAbilityProfile', () => {
-  it('resolves the five real catalog enemies to the expected ability kind from their tags', () => {
+  it('resolves every real catalog enemy to the expected ability kind from their tags', () => {
     const expected: Record<string, string> = {
       corrupted_minion: 'melee_strike',
       possessed_archer: 'ranged_shot',
       dark_shaman: 'heal_allies',
       root_brute: 'area_attack',
       unstable_beast: 'telegraphed_explosion',
+      skeleton_recruit: 'melee_strike',
+      skeleton_warrior: 'melee_strike',
+      bone_soldier: 'melee_strike',
+      // Bone Warlord's `buff_allies` tag shares the heal_allies profile shape (see
+      // resolveEnemyAbilityProfile's docstring) rather than needing its own ability kind.
+      bone_warlord: 'heal_allies',
+      skeleton_king: 'area_attack',
     };
     for (const enemy of GAME_DATA.enemies)
       expect(resolveEnemyAbilityProfile(enemy.behaviors, abilityTuning).kind).toBe(

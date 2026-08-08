@@ -5,6 +5,7 @@ import {
   equipmentVisualFromSnapshot,
   isTwoHandedWeapon,
   validateEquipmentVisualCompatibility,
+  weaponSilhouetteForDefinition,
 } from './equipment-visual';
 import { darkKnight } from './pixellab-characters';
 
@@ -65,5 +66,15 @@ describe('equipment visual adapter', () => {
 
   it('validates that procedural layers inherit every generated animation and direction', () => {
     expect(() => validateEquipmentVisualCompatibility(darkKnight)).not.toThrow();
+  });
+
+  it('reads a weapon silhouette from its item id, defaulting to sword', () => {
+    expect(weaponSilhouetteForDefinition('item.weapon.dusk_axe')).toBe('axe');
+    expect(weaponSilhouetteForDefinition('item.weapon.root_hammer')).toBe('hammer');
+    expect(weaponSilhouetteForDefinition('item.weapon.briar_spear')).toBe('polearm');
+    expect(weaponSilhouetteForDefinition('item.weapon.guardian_halberd')).toBe('polearm');
+    expect(weaponSilhouetteForDefinition('item.weapon.iron_sword')).toBe('sword');
+    expect(weaponSilhouetteForDefinition('item.weapon.corrupted_greatsword')).toBe('sword');
+    expect(weaponSilhouetteForDefinition('item.weapon.unlisted_flail')).toBe('sword');
   });
 });

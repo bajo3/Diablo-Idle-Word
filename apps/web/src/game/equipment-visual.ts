@@ -79,6 +79,22 @@ export function isTwoHandedWeapon(definitionId: string): boolean {
   return definitionId.includes('two_hand') || definitionId.includes('greatsword');
 }
 
+export type WeaponSilhouette = 'sword' | 'axe' | 'hammer' | 'polearm';
+
+/**
+ * Which procedural silhouette `renderEquipmentVisuals` draws for a weapon, read from its item id
+ * the same way `isTwoHandedWeapon` already does — there is no dedicated "weapon shape" field in
+ * the item catalog, only `weapon_one_hand`/`weapon_two_hand`, so this fills that gap without
+ * widening the schema. Order matters: a "hacha del ocaso" must classify as an axe before the
+ * generic sword fallback ever gets a look.
+ */
+export function weaponSilhouetteForDefinition(definitionId: string): WeaponSilhouette {
+  if (/axe/.test(definitionId)) return 'axe';
+  if (/hammer|maul/.test(definitionId)) return 'hammer';
+  if (/spear|halberd|lance|pike/.test(definitionId)) return 'polearm';
+  return 'sword';
+}
+
 /**
  * Procedural overlays inherit the generated character's frame contract. This validator makes that
  * inheritance explicit so an authored replacement can be swapped in without silently drifting from

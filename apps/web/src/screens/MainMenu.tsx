@@ -34,29 +34,34 @@ export function MainMenu({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 40,
-        background:
-          'radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--ambient-moss) 40%, transparent), transparent 36rem), var(--surface-0)',
+        backgroundImage:
+          'linear-gradient(180deg, rgb(4 6 10 / 74%), rgb(6 5 12 / 66%) 55%, rgb(4 6 10 / 90%)), url("/assets/backgrounds/portal-shrine.webp")',
+        backgroundColor: 'var(--surface-0)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center 38%',
+        imageRendering: 'pixelated',
         position: 'relative',
         overflow: 'hidden',
       }}
     >
-      {/* Silueta de brecha / corrupción al fondo */}
+      {/* El brillo del portal ya viene pintado en el fondo; este halo solo lo hace respirar. */}
       <div
         aria-hidden="true"
         style={{
           position: 'absolute',
-          top: '38%',
+          top: '30%',
           left: '50%',
-          width: '320px',
-          height: '60vh',
-          transform: 'translateX(-50%)',
+          width: '260px',
+          height: '260px',
+          borderRadius: '50%',
+          transform: 'translate(-50%, -50%)',
           background:
-            'linear-gradient(to bottom, transparent, color-mix(in srgb, var(--corruption) 28%, transparent) 40%, transparent)',
-          filter: 'blur(8px)',
+            'radial-gradient(circle, color-mix(in srgb, var(--corruption) 46%, transparent), transparent 70%)',
+          filter: 'blur(18px)',
           animation: 'lbo-rift 7s ease-in-out infinite',
         }}
       />
-      <style>{`@keyframes lbo-rift{0%,100%{opacity:.5;transform:translateX(-50%) scaleY(1)}50%{opacity:.85;transform:translateX(-50%) scaleY(1.06)}}`}</style>
+      <style>{`@keyframes lbo-rift{0%,100%{opacity:.45;transform:translate(-50%,-50%) scale(1)}50%{opacity:.8;transform:translate(-50%,-50%) scale(1.12)}}`}</style>
 
       <header
         style={{

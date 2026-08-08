@@ -3,8 +3,25 @@ import { characterClassDisplayName } from '@brecha/shared';
 
 import { ApiError, gameApi, type ProgressionSnapshot } from '../api';
 import { Button } from '../components/Button';
-import { Icon } from '../components/Icon';
+import { Icon, type IconName } from '../components/Icon';
 import { Panel } from '../components/Panel';
+
+/**
+ * Picks an icon by keyword in the ability's id/name rather than one hardcoded ending — every
+ * class's abilities ("cleave", "power_strike", "iron_skin"...) get a plausible glyph instead of
+ * everything non-slash defaulting to sparkles.
+ */
+function iconForSkill(skill: ProgressionSnapshot['skills'][number]): IconName {
+  const key = `${skill.abilityId} ${skill.displayName}`.toLowerCase();
+  if (skill.kind === 'passive') return 'sparkles';
+  if (/cleave|axe/.test(key)) return 'axe';
+  if (/slash|strike|blade|thrust|stab/.test(key)) return 'sword';
+  if (/skin|shield|guard|ward/.test(key)) return 'shield';
+  if (/rush|thirst|blood|rage|fury/.test(key)) return 'fury';
+  if (/heal|life|vital/.test(key)) return 'heart';
+  if (/whirlwind|storm|cyclone/.test(key)) return 'target';
+  return 'sparkles';
+}
 
 export function Skills({
   characterId,
@@ -96,10 +113,16 @@ export function Skills({
               {[0, 1, 2, 3].map((slot) => {
                 const skill = snapshot.skills.find((entry) => entry.barSlot === slot);
                 return (
-                  <div key={slot} style={slotStyle}>
-                    <span>{slot + 1}</span>
-                    <Icon name={skill ? 'sparkles' : 'lock'} size={18} />
-                    <strong>{skill?.displayName ?? 'Ranura vacía'}</strong>
+                  <div key={slot} style={filledSlotStyle(skill !== undefined)}>
+                    <span style={keybindChipStyle}>{slot + 1}</span>
+                    <Icon
+                      name={skill ? iconForSkill(skill) : 'lock'}
+                      size={18}
+                      style={{ color: skill ? 'var(--accent)' : 'var(--text-dim)' }}
+                    />
+                    <strong style={{ color: skill ? 'var(--text-strong)' : 'var(--text-dim)' }}>
+                      {skill?.displayName ?? 'Ranura vacía'}
+                    </strong>
                   </div>
                 );
               })}
@@ -136,25 +159,60 @@ function SkillRow({
         alignItems: 'center',
         gap: 12,
         padding: 12,
-        background: 'var(--surface-2)',
-        border: '1px solid var(--border-dim)',
+        background: skill.equipped
+          ? 'color-mix(in srgb, var(--accent) 10%, var(--surface-2))'
+          : 'var(--surface-2)',
+        border: `1px solid ${skill.equipped ? 'var(--accent)' : 'var(--border-dim)'}`,
         opacity: unlocked ? 1 : 0.75,
+        transition: 'background 0.15s ease, border-color 0.15s ease',
       }}
     >
       <span
         style={{
+          position: 'relative',
           width: 38,
           height: 38,
+          flex: '0 0 auto',
           display: 'grid',
           placeItems: 'center',
           border: '1px solid var(--border-strong)',
+          background: unlocked ? 'var(--surface-sunken)' : 'var(--surface-1)',
           color: unlocked ? 'var(--accent)' : 'var(--text-dim)',
+          filter: unlocked ? 'none' : 'grayscale(0.6)',
         }}
       >
-        <Icon name={skill.abilityId.endsWith('slash') ? 'sword' : 'sparkles'} size={22} />
+        <Icon name={iconForSkill(skill)} size={22} />
+        {!unlocked && (
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: -1,
+              display: 'grid',
+              placeItems: 'center',
+              background: 'rgb(6 8 10 / 55%)',
+            }}
+          >
+            <Icon name="lock" size={16} style={{ color: 'var(--text-dim)' }} />
+          </span>
+        )}
       </span>
       <div style={{ flex: 1 }}>
-        <strong>{skill.displayName}</strong>
+        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <strong>{skill.displayName}</strong>
+          {unlocked && skill.kind !== 'passive' && skill.level > 0 && (
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--text-dim)',
+                letterSpacing: '0.06em',
+              }}
+            >
+              NV. {skill.level}
+            </span>
+          )}
+        </span>
         <p style={{ margin: '3px 0 0', color: 'var(--text-muted)', fontSize: 12 }}>
           {skill.description}
         </p>
@@ -248,7 +306,8 @@ function Empty({
 const screenStyle = {
   minHeight: '100vh',
   padding: '24px clamp(16px, 4vw, 48px)',
-  background: 'var(--surface-0)',
+  background:
+    'radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ambient-moss) 22%, transparent), transparent 40rem), var(--surface-0)',
   color: 'var(--text)',
   display: 'flex',
   flexDirection: 'column',
@@ -266,11 +325,26 @@ const titleStyle = {
   color: 'var(--text-strong)',
   letterSpacing: '0.04em',
 } as const;
-const slotStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  padding: 10,
+function filledSlotStyle(filled: boolean) {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+    border: `1px solid ${filled ? 'var(--accent)' : 'var(--border-dim)'}`,
+    background: filled ? 'color-mix(in srgb, var(--accent) 8%, var(--surface-2))' : 'transparent',
+    color: 'var(--text-muted)',
+  } as const;
+}
+const keybindChipStyle = {
+  display: 'grid',
+  placeItems: 'center',
+  width: 20,
+  height: 20,
+  flex: '0 0 auto',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--text-dim)',
   border: '1px solid var(--border-dim)',
-  color: 'var(--text-muted)',
+  background: 'var(--surface-sunken)',
 } as const;
